@@ -25,40 +25,20 @@ class HashPaging : public BasePaging {
   public:
     HashPaging(PagingStyle selection);
     ~HashPaging();
-    int map_page_table(Address addr, Page *pg_ptr, BasePDTEntry *&mapped_entry);
-    virtual int map_page_table(Address addr, Page *pg_ptr);
-    virtual int map_page_table(uint32_t req_id, Address addr, Page *pg_ptr,
-                               bool is_write);
-    virtual bool unmap_page_table(Address addr);
-    // access
+    virtual PagingStyle get_paging_style() { return mode; }
+    virtual PageTable *get_root_directory() { return pml4; }
     virtual Address access(MemReq &req);
     virtual Address access(MemReq &req, g_vector<MemObject *> &parents,
                            g_vector<uint32_t> &parentRTTs,
                            BaseCoreRecorder *cRec, bool sendPTW);
+    virtual bool unmap_page_table(Address addr);
+    int map_page_table(Address addr, Page *pg_ptr, BasePDTEntry *&mapped_entry);
+    virtual int map_page_table(Address addr, Page *pg_ptr);
+    virtual int map_page_table(uint32_t req_id, Address addr, Page *pg_ptr,
+                               bool is_write);
     virtual bool allocate_page_table(Address addr, Address size);
     virtual void remove_root_directory();
     virtual bool remove_page_table(Address addr, Address size);
-
-    virtual PagingStyle get_paging_style() { return mode; }
-
-    unsigned get_page_table_num() { return cur_pt_num; }
-
-    unsigned get_page_directory_num() { return cur_pd_num; }
-
-    unsigned get_page_directory_pointer_num() { return cur_pdp_num; }
-
-    virtual PageTable *get_root_directory() { return pml4; }
-
-    virtual void calculate_stats() {
-        long unsigned overhead =
-            (long unsigned)(cur_pt_num + cur_pd_num + cur_pdp_num) * PAGE_SIZE;
-        info("Error migrated pages:%d", error_migrated_pages);
-        info("page directory pointer number:%d", cur_pdp_num);
-        info("page directory number:%d", cur_pd_num);
-        info("page table number:%d", cur_pt_num);
-        info("overhead of page table storage:%f MB",
-             (double)overhead / (double)(1024 * 1024));
-    }
     virtual void calculate_stats(std::ofstream &vmof) {
         long unsigned overhead =
             (long unsigned)(cur_pt_num + cur_pd_num + cur_pdp_num) * PAGE_SIZE;
@@ -69,41 +49,29 @@ class HashPaging : public BasePaging {
         vmof << "overhead of page table storage:"
              << (double)overhead / (double)(1024 * 1024) << " MB" << std::endl;
     }
+    virtual void calculate_stats() {
+        long unsigned overhead =
+            (long unsigned)(cur_pt_num + cur_pd_num + cur_pdp_num) * PAGE_SIZE;
+        info("Error migrated pages:%d", error_migrated_pages);
+        info("page directory pointer number:%d", cur_pdp_num);
+        info("page directory number:%d", cur_pd_num);
+        info("page table number:%d", cur_pt_num);
+        info("overhead of page table storage:%f MB",
+             (double)overhead / (double)(1024 * 1024));
+    }
     virtual void lock() { futex_lock(&table_lock); }
     virtual void unlock() { futex_unlock(&table_lock); }
 
   protected:
-    // allocate multiple
-    PageTable *allocate_page_directory_pointer(unsigned pml4_entry_id,
-                                               int &alloc_time);
-    bool allocate_page_directory_pointer(entry_list pml4_entry);
-
-    PageTable *allocate_page_directory(unsigned pml4_entry_id,
-                                       unsigned pdpt_entry_id, int &alloc_time);
-    bool allocate_page_directory(pair_list high_level_entry);
-
-    PageTable *allocate_page_table(unsigned pml4_entry_id,
-                                   unsigned pdpt_entry_id,
-                                   unsigned pdt_entry_id, int &alloc_time);
-    bool allocate_page_table(triple_list high_level_entry);
-
+  //TUBUXIN: hash table functions can be implemented here, including allocate, remove, and so on.
+    //allocate
     // remove
-    bool remove_page_directory_pointer(unsigned pml4_entry_id);
-    bool remove_page_directory_pointer(entry_list pml4_entry);
-    bool remove_page_directory(unsigned pml4_entry_id, unsigned pdp_entry_id);
-    bool remove_page_directory(pair_list high_level_entry);
     bool remove_page_table(unsigned pml4_entry_id, unsigned pdp_entry_id,
                            unsigned pd_entry_id);
     inline bool remove_page_table(triple_list high_level_entry);
 
-    PageTable *get_tables(unsigned level, std::vector<unsigned> entry_id_vec);
-
   private:
     uint64_t hash_function(Address address);
-    uint64_t loadPageTable(MemReq &req, uint64_t startCycle, uint64_t pageNo,
-                           uint32_t entry_id, g_vector<MemObject *> &parents,
-                           g_vector<uint32_t> &parentRTTs,
-                           BaseCoreRecorder *cRec, bool sendPTW);
     uint64_t loadPageTables(MemReq &req, g_vector<uint64_t> &pgt_addrs,
                             g_vector<MemObject *> &parents,
                             g_vector<uint32_t> &parentRTTs, bool sendPTW);
@@ -115,11 +83,10 @@ class HashPaging : public BasePaging {
 
   private:
     PagingStyle mode;
-    // number of page directory pointer at most 512
     uint64_t cur_pdp_num;
     uint64_t cur_pd_num;
     uint64_t cur_pt_num;
-
+    uint64_t cur_pte_num;
     lock_t table_lock;
     uint64_t error_migrated_pages;
     uint64_t table_size;

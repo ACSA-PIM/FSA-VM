@@ -23,7 +23,7 @@
 #include <list>
 #include <vector>
 
-/*-----------LongMode Paging--------------*/
+/*-----------Hash Paging--------------*/
 // PageTable* HashPaging::pml4;
 HashPaging::HashPaging(PagingStyle select)
     : mode(select), cur_pdp_num(0), cur_pd_num(0), cur_pt_num(0) {
@@ -92,59 +92,9 @@ int HashPaging::map_page_table(Address addr, Page *pg_ptr,
     return latency;
 }
 
-inline PageTable *
-HashPaging::get_tables(unsigned level,
-                           std::vector<unsigned> entry_id_list) {
-    assert(level >= 1);
-    PageTable *table;
-    unsigned i = 0;
-    table = get_next_level_address<PageTable>(pml4, entry_id_list[i]);
-    level--;
-    i++;
-    while (level > 0) {
-        table = get_next_level_address<PageTable>(table, entry_id_list[i]);
-        if (!table)
-            return NULL;
-        if (table)
-            level--;
-        i++;
-    }
-    return table;
-}
-
 bool HashPaging::unmap_page_table(Address addr) {
-    unsigned pml4_id, pdp_id, pd_id, pt_id;
-    std::vector<unsigned> entry_id_vec(4);
-
-    get_domains(addr, pml4_id, pdp_id, pd_id, pt_id, mode);
-    entry_id_vec[0] = pml4_id;
-    entry_id_vec[1] = pdp_id;
-    entry_id_vec[2] = pd_id;
-    PageTable *table = NULL;
-    // point to page directory pointer table
-    if (mode == LongMode_Normal) {
-        table = get_tables(3, entry_id_vec);
-        if (!table) {
-            debug_printf("didn't find entry indexed with %ld !", addr);
-            return false;
-        }
-        invalidate_page(table, pt_id);
-    } else if (mode == LongMode_Middle) {
-        table = get_tables(2, entry_id_vec);
-        if (!table) {
-            debug_printf("didn't find entry indexed with %ld !", addr);
-            return false;
-        }
-        invalidate_page(table, pd_id);
-    } else if (mode == LongMode_Huge) {
-        table = get_tables(1, entry_id_vec);
-        if (!table) {
-            debug_printf("didn't find entry indexed with %ld !", addr);
-            return false;
-        }
-        invalidate_page(table, pdp_id);
-    }
-    return false;
+    //need to implement
+    return true;
 }
 
 Address HashPaging::access(MemReq &req) {
@@ -196,30 +146,6 @@ Address HashPaging::access(MemReq &req) {
     }
     return get_block_id(req,ptr, write_back ,access_counter); */
     return ((Page *)ptr)->pageNo;
-}
-
-uint64_t HashPaging::loadPageTable(MemReq &req, uint64_t startCycle,
-                                       uint64_t pageNo, uint32_t entry_id,
-                                       g_vector<MemObject *> &parents,
-                                       g_vector<uint32_t> &parentRTTs,
-                                       BaseCoreRecorder *cRec, bool sendPTW) {
-    if (!sendPTW)
-        return startCycle;
-    uint64_t respCycle = startCycle;
-    uint64_t pgAddr = pageNo << zinfo->page_shift;
-    pgAddr |= (ENTRY_SIZE_512 * entry_id);
-    uint64_t lineAddr = pgAddr >> lineBits;
-    uint32_t parentId = getParentId(lineAddr, parents.size());
-    MESIState dummyState = MESIState::I;
-    // memmory req for page table
-    MemReq pgt_req = {lineAddr,    GETS,       req.childId,
-                      &dummyState, startCycle, req.childLock,
-                      dummyState,  req.srcId,  req.flags};
-    uint64_t nextLevelLat = parents[parentId]->access(pgt_req) - startCycle;
-    uint32_t netLat = parentRTTs[parentId];
-    respCycle += nextLevelLat + netLat;
-    cRec->record(startCycle, startCycle, respCycle);
-    return respCycle;
 }
 
 uint64_t HashPaging::loadPageTables(MemReq &req,
@@ -331,244 +257,9 @@ Address HashPaging::access(MemReq &req, g_vector<MemObject *> &parents,
 }
 
 // allocate
-PageTable *
-HashPaging::allocate_page_directory_pointer(unsigned pml4_entry_id,
-                                                int &allocate_time) {
-    // allocate_time = 0;
-    assert(pml4_entry_id < 512 && cur_pdp_num < ENTRY_512);
-    if (!is_present(pml4, pml4_entry_id)) {
-        PageTable *table_tmp = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
-        PageTable *table = NULL;
-        if (zinfo->buddy_allocator) {
-            Page *page = zinfo->buddy_allocator->allocate_pages(0);
-            if (page)
-                table = new (table_tmp) PageTable(ENTRY_512, page);
-            else
-                panic("Cannot allocate a page for page directory!");
-        } else {
-            table = new (table_tmp) PageTable(ENTRY_512);
-        }
-        validate_entry(pml4, pml4_entry_id, table);
-        allocate_time++;
-        cur_pdp_num++;
-        return table;
-    }
-    PageTable *pg_dir_p =
-        get_next_level_address<PageTable>(pml4, pml4_entry_id);
-    return pg_dir_p;
-}
-
-bool HashPaging::allocate_page_directory_pointer(entry_list pml4_entry) {
-    bool succeed = true;
-    int allocate_time;
-    for (entry_list_ptr it = pml4_entry.begin(); it != pml4_entry.end(); it++) {
-        if (allocate_page_directory_pointer(*it, allocate_time) == NULL) {
-            succeed = false;
-            debug_printf("allocate page directory pointer for entry %d of pml4 "
-                         "table failed",
-                         *it);
-        }
-    }
-    return succeed;
-}
-
-bool HashPaging::allocate_page_directory(pair_list high_level_entry) {
-    bool succeed = true;
-    int allocate_time;
-    for (pair_list_ptr it = high_level_entry.begin();
-         it != high_level_entry.end(); it++) {
-        if (allocate_page_directory((*it).first, (*it).second, allocate_time) ==
-            NULL) {
-            debug_printf("allocate (pml4_entry_id , page directory pointer "
-                         "entry id)---(%d,%d) failed",
-                         (*it).first, (*it).second);
-            succeed = false;
-        }
-    }
-    return succeed;
-}
-
-PageTable *HashPaging::allocate_page_directory(unsigned pml4_entry_id,
-                                                   unsigned pdpt_entry_id,
-                                                   int &allocate_time) {
-    PageTable *pdp_table =
-        get_next_level_address<PageTable>(pml4, pml4_entry_id);
-    if (pdp_table) {
-        if (!is_present(pdp_table, pdpt_entry_id)) {
-            PageTable *table_tmp = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
-            PageTable *pd_table = NULL;
-            if (zinfo->buddy_allocator) {
-                Page *page = zinfo->buddy_allocator->allocate_pages(0);
-                if (page)
-                    pd_table = new (table_tmp) PageTable(ENTRY_512, page);
-                else
-                    panic("Cannot allocate a page for page directory!");
-            } else {
-                pd_table = new (table_tmp) PageTable(ENTRY_512);
-            }
-            validate_entry(pdp_table, pdpt_entry_id, pd_table);
-            cur_pd_num++;
-            allocate_time++;
-            return pd_table;
-        } else {
-            PageTable *table =
-                get_next_level_address<PageTable>(pdp_table, pdpt_entry_id);
-            return table;
-        }
-    } else {
-        if (allocate_page_directory_pointer(pml4_entry_id, allocate_time)) {
-            PageTable *pdpt_table =
-                get_next_level_address<PageTable>(pml4, pml4_entry_id);
-            PageTable *table_tmp = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
-            PageTable *pd_table = NULL;
-            if (zinfo->buddy_allocator) {
-                Page *page = zinfo->buddy_allocator->allocate_pages(0);
-                if (page)
-                    pd_table = new (table_tmp) PageTable(ENTRY_512, page);
-                else
-                    panic("Cannot allocate a page for page directory!");
-            } else {
-                pd_table = new (table_tmp) PageTable(ENTRY_512);
-            }
-            validate_entry(pdpt_table, pdpt_entry_id, pd_table);
-            allocate_time++;
-            cur_pd_num++;
-            return pd_table;
-        }
-    }
-    return NULL;
-}
-
-bool HashPaging::allocate_page_table(triple_list high_level_entry) {
-    bool succeed = true;
-    int time;
-    for (triple_list_ptr it = high_level_entry.begin();
-         it != high_level_entry.end(); it++) {
-        if (!allocate_page_table((*it).first, (*it).second, (*it).third, time))
-            succeed = false;
-    }
-    return succeed;
-}
-
-PageTable *HashPaging::allocate_page_table(unsigned pml4_entry_id,
-                                               unsigned pdpt_entry_id,
-                                               unsigned pdt_entry_id,
-                                               int &alloc_time) {
-    alloc_time = 0;
-    assert(mode == LongMode_Normal);
-    PageTable *pdp_table =
-        get_next_level_address<PageTable>(pml4, pml4_entry_id);
-    if (pdp_table) {
-        PageTable *pd_table =
-            get_next_level_address<PageTable>(pdp_table, pdpt_entry_id);
-        if (pd_table) {
-            if (is_present(pd_table, pdt_entry_id)) {
-                PageTable *table =
-                    get_next_level_address<PageTable>(pd_table, pdt_entry_id);
-                return table;
-            } else {
-                PageTable *table_tmp =
-                    gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
-                PageTable *table = NULL;
-                if (zinfo->buddy_allocator) {
-                    Page *page = zinfo->buddy_allocator->allocate_pages(0);
-                    if (page)
-                        table = new (table_tmp) PageTable(ENTRY_512, page);
-                    else
-                        panic("Cannot allocate a page for page table!");
-                } else {
-                    table = new (table_tmp) PageTable(ENTRY_512);
-                }
-                validate_entry(pd_table, pdt_entry_id, table);
-                cur_pt_num++;
-                alloc_time++;
-                return table;
-            }
-        }
-        // page_direcory doesn't exist allocate
-        else {
-            if (allocate_page_directory(pml4_entry_id, pdpt_entry_id,
-                                        alloc_time)) {
-                // get page directory
-                PageTable *page_dir =
-                    get_next_level_address<PageTable>(pdp_table, pdpt_entry_id);
-                PageTable *table = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
-                PageTable *pg_table = NULL;
-                if (zinfo->buddy_allocator) {
-                    Page *page = zinfo->buddy_allocator->allocate_pages(0);
-                    if (page)
-                        pg_table = new (table) PageTable(ENTRY_512, page);
-                    else
-                        panic("Cannot allocate a page for page table!");
-                } else {
-                    pg_table = new (table) PageTable(ENTRY_512);
-                }
-                validate_entry(page_dir, pdt_entry_id, pg_table);
-                cur_pt_num++;
-                alloc_time++;
-                return pg_table;
-            }
-        }
-    } else {
-        PageTable *g_tables = gm_memalign<PageTable>(CACHE_LINE_BYTES, 3);
-        PageTable *pdp_table = NULL;
-        PageTable *pd_table = NULL;
-        PageTable *pg_table = NULL;
-        if (zinfo->buddy_allocator) {
-            Page *page1 = zinfo->buddy_allocator->allocate_pages(0);
-            if (page1) {
-                pdp_table = new (&g_tables[0]) PageTable(ENTRY_512, page1);
-                Page *page2 = zinfo->buddy_allocator->allocate_pages(0);
-                if (page2) {
-                    pd_table = new (&g_tables[1]) PageTable(ENTRY_512, page2);
-                    Page *page3 = zinfo->buddy_allocator->allocate_pages(0);
-                    if (page3) {
-                        pg_table =
-                            new (&g_tables[2]) PageTable(ENTRY_512, page3);
-                    } else {
-                        panic("Cannot allocate a page for page table!");
-                    }
-                } else {
-                    panic("Cannot allocate a page for page table!");
-                }
-            } else {
-                panic("Cannot allocate a page for page table!");
-            }
-        } else {
-            pdp_table = new (&g_tables[0]) PageTable(ENTRY_512);
-            pd_table = new (&g_tables[1]) PageTable(ENTRY_512);
-            pg_table = new (&g_tables[2]) PageTable(ENTRY_512);
-        }
-        validate_entry(pml4, pml4_entry_id, pdp_table);
-        cur_pdp_num++;
-        validate_entry(pdp_table, pdpt_entry_id, pd_table);
-        cur_pd_num++;
-        validate_entry(pd_table, pdt_entry_id, pg_table);
-        cur_pt_num++;
-        alloc_time += 3;
-        return pg_table;
-    }
-    return NULL;
-}
 
 bool HashPaging::allocate_page_table(Address addr, Address size) {
-    bool succeed = true;
-    assert(mode == LongMode_Normal);
-    if (addr & 0x1fffff) {
-        fatal("must align with 2MB");
-        succeed = false;
-    }
-    unsigned pml4_entry = get_pml4_off(addr, mode);
-    unsigned pdp_entry = get_page_directory_pointer_off(addr, mode);
-    unsigned pd_entry = get_page_directory_off(addr, mode);
-    unsigned page_table_num = (size + 0x1fffff) >> 21;
-    int time;
-    for (unsigned i = 0; i < page_table_num; i++) {
-        if (allocate_page_table(pml4_entry, pdp_entry, pd_entry + i, time) ==
-            NULL)
-            succeed = false;
-    }
-    return succeed;
+    return true;
 }
 
 // remove
@@ -576,7 +267,7 @@ void HashPaging::remove_root_directory() {
     if (pml4) {
         for (unsigned i = 0; i < ENTRY_512; i++) {
             if (is_present(pml4, i)) {
-                remove_page_directory_pointer(i);
+                //need to implement
             }
         }
         delete pml4;
@@ -584,106 +275,9 @@ void HashPaging::remove_root_directory() {
     }
 }
 
-bool HashPaging::remove_page_directory_pointer(unsigned pml4_entry_id) {
-    bool succeed = true;
-    PageTable *pdp_table =
-        get_next_level_address<PageTable>(pml4, pml4_entry_id);
-    if (pdp_table) {
-        if (mode != LongMode_Huge) {
-            for (unsigned i = 0; i < ENTRY_512; i++) {
-                if (is_present(pdp_table, i)) {
-                    if (remove_page_directory(pml4_entry_id, i) == false)
-                        succeed = false;
-                }
-            }
-        }
-        invalidate_entry<PageTable>(pml4, pml4_entry_id);
-        cur_pdp_num--;
-    }
-    return succeed;
-}
-
-bool HashPaging::remove_page_directory_pointer(entry_list pml4_entry) {
-    bool succeed = true;
-    for (entry_list_ptr it = pml4_entry.begin(); it != pml4_entry.end(); it++) {
-        if (remove_page_directory_pointer(*it))
-            succeed = false;
-    }
-    return succeed;
-}
-
-bool HashPaging::remove_page_directory(unsigned pml4_entry_id,
-                                           unsigned pdp_entry_id) {
-    assert(mode != LongMode_Huge && pml4_entry_id < 512 && pdp_entry_id < 512);
-    PageTable *pdp_table = NULL;
-    if ((pdp_table = get_next_level_address<PageTable>(pml4, pml4_entry_id))) {
-        PageTable *pd_table = NULL;
-        if ((pd_table =
-                 get_next_level_address<PageTable>(pdp_table, pdp_entry_id))) {
-            if (mode == LongMode_Normal) {
-                for (unsigned i = 0; i < ENTRY_512; i++)
-                    if (is_present(pd_table, i))
-                        remove_page_table(pml4_entry_id, pdp_entry_id, i);
-            }
-            invalidate_entry<PageTable>(pdp_table, pdp_entry_id);
-            cur_pd_num--;
-        }
-    }
-    return true;
-}
-
-bool HashPaging::remove_page_directory(pair_list high_level_entry) {
-    for (pair_list_ptr it = high_level_entry.begin();
-         it != high_level_entry.end(); it++) {
-        remove_page_directory((*it).first, (*it).second);
-    }
-    return true;
-}
-
-bool HashPaging::remove_page_table(unsigned pml4_entry_id,
-                                       unsigned pdp_entry_id,
-                                       unsigned pd_entry_id) {
-    assert(mode == LongMode_Normal);
-    PageTable *pdp_table = NULL;
-    if ((pdp_table = get_next_level_address<PageTable>(pml4, pml4_entry_id))) {
-        PageTable *pd_table = NULL;
-        if ((pd_table =
-                 get_next_level_address<PageTable>(pdp_table, pdp_entry_id))) {
-            PageTable *pg_table = NULL;
-            if ((pg_table = get_next_level_address<PageTable>(pd_table,
-                                                              pd_entry_id))) {
-                if (mode == LongMode_Normal) {
-                    for (unsigned i = 0; i < ENTRY_512;
-                         i++) // also reclaim the pages pointed by entries of
-                              // the page table
-                        invalidate_page(pg_table, i);
-                }
-                invalidate_entry<PageTable>(pd_table, pd_entry_id);
-                cur_pt_num--;
-            }
-        }
-    }
-    return true;
-}
-
 bool HashPaging::remove_page_table(Address addr, Address size) {
-    assert(mode == LongMode_Normal);
-    if (addr & 0x1fffff) {
-        debug_printf("address must align with 2MB");
-        return false;
-    }
-    unsigned pml4_entry, pdp_entry, pd_entry, pt_entry;
-    get_domains(addr, pml4_entry, pdp_entry, pd_entry, pt_entry, mode);
-    unsigned page_table_num = (size + 0x1fffff) >> 21;
-    for (unsigned i = 0; i < page_table_num; i++)
-        remove_page_table(pml4_entry, pdp_entry, pd_entry + i);
     return true;
 }
 
-bool HashPaging::remove_page_table(triple_list high_level_entry) {
-    for (triple_list_ptr it = high_level_entry.begin();
-         it != high_level_entry.end(); it++)
-        remove_page_table((*it).first, (*it).second, (*it).third);
-    return true;
-}
+
 
