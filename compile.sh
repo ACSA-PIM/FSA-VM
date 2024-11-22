@@ -7,7 +7,6 @@ DRAMPOWERPATH="$MULTIPIMPATH/common/DRAMPower/src"
 LIBCONFIGPATH="$MULTIPIMPATH/common/libconfig"
 # XMLPARSERPATH="$MULTIPIMPATH/common/xmlparser"
 NUMCPUS=$(grep -c ^processor /proc/cpuinfo)
-NUMCPUS=2
 
 export PINPATH
 export LIBCONFIGPATH
