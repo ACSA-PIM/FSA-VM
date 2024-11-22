@@ -79,8 +79,8 @@ inline PagingStyle string_to_pagingmode( const char* mode_str)
 		return LongMode_Middle;
 	if( !strcmp(mode_str , "LongMode_Huge") )
 		return LongMode_Huge;
-	if( !strcmp(mode_str , "Hash") )
-		return Hash;
+	if( !strcmp(mode_str , "Hash_Normal") )
+		return Hash_Normal;
 	return Legacy_Normal;	//default return Legacy_Normal
 }
 
@@ -92,8 +92,8 @@ inline std::string pagingmode_to_string( PagingStyle mode)
 		return "PAE";
 	else if( mode==LongMode_Normal || mode==LongMode_Middle || mode==LongMode_Huge)
 		return "LongMode";
-	if( mode==Hash)
-		return "Hash";
+	if( mode==Hash_Normal)
+		return "Hash_Normal";
 	else
 		return "";
 
@@ -147,7 +147,7 @@ inline uint64_t get_page_size_by_mode( PagingStyle mode)
 	uint64_t mb = power(2,20);
 	uint64_t gb = power(2,30);
 	if( mode == Legacy_Normal || mode==PAE_Normal
-			|| mode==LongMode_Normal)
+			|| mode==LongMode_Normal || mode==Hash_Normal)
 		return (4*kb);	//4KB
 	if (mode==Legacy_Huge)
 		return (4*mb);	//4MB
