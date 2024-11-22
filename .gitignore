@@ -9,4 +9,6 @@
 .vscode
 /tests/benchmarks/workloads/*
 *.o
+*.a
+out.cfg
 heartbeat
