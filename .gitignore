@@ -7,3 +7,4 @@
 *.out
 *.stats
 .vscode
+/tests/benchmarks/workloads/*

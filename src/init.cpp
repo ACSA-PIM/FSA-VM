@@ -81,6 +81,7 @@
 #include "tlb/tlb_entry.h"
 #include "page-table/comm_page_table_op.h"
 #include "page-table/page_table.h"
+#include "page-table/hash_table.h"
 #include "page-table/reversed_page_table.h"
 #include "memory_hierarchy.h"
 #include "cd_arrays.h"
@@ -974,6 +975,7 @@ static void InitSystem(Config& config) {
                         PAEPaging* pae_paging;
                         LongModePaging* longmode_paging;
                         ReversedPaging* reversed_paging;
+                        HashPaging* hash_paging;
                     }; 
                     zinfo->paging_array = gm_memalign<BasePaging*>(CACHE_LINE_BYTES , zinfo->numProcs);
                     string mode_str = pagingmode_to_string(zinfo->paging_mode);
@@ -984,6 +986,8 @@ static void InitSystem(Config& config) {
                             pae_paging = gm_memalign<PAEPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                         if( mode_str == "LongMode")
                             longmode_paging = gm_memalign<LongModePaging>(CACHE_LINE_BYTES, zinfo->numProcs);
+                        if( mode_str == "Hash")
+                            hash_paging - gm_memalign<HashPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                     } else if( reversed_pgt || zinfo->enable_shared_memory ){
                         reversed_paging = gm_memalign<ReversedPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                     }
@@ -997,6 +1001,8 @@ static void InitSystem(Config& config) {
                                 info("Create long mode page table for proc %d",i);
                                 zinfo->paging_array[i] = new (&longmode_paging[i])LongModePaging(zinfo->paging_mode);
                             }
+                            if( mode_str == "Hash")
+                                zinfo->paging_array[i] = new (&hash_paging[i])HashPaging(zinfo->paging_mode);
                         }else if( reversed_pgt || zinfo->enable_shared_memory){
                             info("Create reversed paging");
                             zinfo->paging_array[i] = new (&reversed_paging[i]) ReversedPaging(mode_str, zinfo->paging_mode);	

@@ -189,6 +189,8 @@ class BasePDTEntry : public GlobAlloc {
         }
         last_requester = req_id;
     }
+    void set_vpn(Address addr) { vpn = addr; }
+    Address get_vpn() { return vpn; }
     uint32_t get_lrequester() { return last_requester; }
 
   private:
@@ -208,6 +210,7 @@ class BasePDTEntry : public GlobAlloc {
     unsigned last_requester;
     bool page_assigned;
     unsigned remapped_times;
+    Address vpn;
 };
 
 /*---------structure of page table--------*/

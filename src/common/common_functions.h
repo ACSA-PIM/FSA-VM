@@ -79,6 +79,8 @@ inline PagingStyle string_to_pagingmode( const char* mode_str)
 		return LongMode_Middle;
 	if( !strcmp(mode_str , "LongMode_Huge") )
 		return LongMode_Huge;
+	if( !strcmp(mode_str , "Hash") )
+		return Hash;
 	return Legacy_Normal;	//default return Legacy_Normal
 }
 
@@ -90,6 +92,8 @@ inline std::string pagingmode_to_string( PagingStyle mode)
 		return "PAE";
 	else if( mode==LongMode_Normal || mode==LongMode_Middle || mode==LongMode_Huge)
 		return "LongMode";
+	if( mode==Hash)
+		return "Hash";
 	else
 		return "";
 

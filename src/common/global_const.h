@@ -83,7 +83,8 @@ enum PagingStyle
 	PAE_Huge,		//2MB page
 	LongMode_Normal,	//4KB page
 	LongMode_Middle,	//2MB page
-	LongMode_Huge		//1GB page
+	LongMode_Huge,		//1GB page
+	Hash
 };
 
 enum ZoneType
