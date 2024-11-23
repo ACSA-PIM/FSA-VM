@@ -26,7 +26,7 @@ class HashPaging : public BasePaging {
     HashPaging(PagingStyle selection);
     ~HashPaging();
     virtual PagingStyle get_paging_style() { return mode; }
-    virtual PageTable *get_root_directory() { return pml4; }
+    virtual PageTable *get_root_directory() { return hptr; }
     virtual Address access(MemReq &req);
     virtual Address access(MemReq &req, g_vector<MemObject *> &parents,
                            g_vector<uint32_t> &parentRTTs,
@@ -39,36 +39,34 @@ class HashPaging : public BasePaging {
     virtual bool allocate_page_table(Address addr, Address size);
     virtual void remove_root_directory();
     virtual bool remove_page_table(Address addr, Address size);
-    virtual void calculate_stats(std::ofstream &vmof) {
-        long unsigned overhead =
-            (long unsigned)(cur_pt_num + cur_pd_num + cur_pdp_num) * PAGE_SIZE;
-        vmof << "Error migrated pages:" << error_migrated_pages << std::endl;
-        vmof << "page directory pointer number:" << cur_pdp_num << std::endl;
-        vmof << "page directory number:" << cur_pd_num << std::endl;
-        vmof << "page table number:" << cur_pt_num << std::endl;
-        vmof << "overhead of page table storage:"
-             << (double)overhead / (double)(1024 * 1024) << " MB" << std::endl;
+    virtual void calculate_stats(std::ofstream &vmof) {//Need to implement
+        // long unsigned overhead =
+        //     (long unsigned)(cur_pt_num + cur_pd_num + cur_pdp_num) * PAGE_SIZE;
+        // vmof << "Error migrated pages:" << error_migrated_pages << std::endl;
+        // vmof << "page directory pointer number:" << cur_pdp_num << std::endl;
+        // vmof << "page directory number:" << cur_pd_num << std::endl;
+        // vmof << "page table number:" << cur_pt_num << std::endl;
+        // vmof << "overhead of page table storage:"
+        //      << (double)overhead / (double)(1024 * 1024) << " MB" << std::endl;
     }
-    virtual void calculate_stats() {
-        long unsigned overhead =
-            (long unsigned)(cur_pt_num + cur_pd_num + cur_pdp_num) * PAGE_SIZE;
-        info("Error migrated pages:%d", error_migrated_pages);
-        info("page directory pointer number:%d", cur_pdp_num);
-        info("page directory number:%d", cur_pd_num);
-        info("page table number:%d", cur_pt_num);
-        info("overhead of page table storage:%f MB",
-             (double)overhead / (double)(1024 * 1024));
+    virtual void calculate_stats() {//Need to implement
+        // long unsigned overhead =
+        //     (long unsigned)(cur_pt_num + cur_pd_num + cur_pdp_num) * PAGE_SIZE;
+        // info("Error migrated pages:%d", error_migrated_pages);
+        // info("page directory pointer number:%d", cur_pdp_num);
+        // info("page directory number:%d", cur_pd_num);
+        // info("page table number:%d", cur_pt_num);
+        // info("overhead of page table storage:%f MB",
+        //      (double)overhead / (double)(1024 * 1024));
     }
     virtual void lock() { futex_lock(&table_lock); }
     virtual void unlock() { futex_unlock(&table_lock); }
 
   protected:
   //TUBUXIN: hash table functions can be implemented here, including allocate, remove, and so on.
+    uint64_t allocate_table_entry(uint64_t hash_id);
     //allocate
     // remove
-    bool remove_page_table(unsigned pml4_entry_id, unsigned pdp_entry_id,
-                           unsigned pd_entry_id);
-    inline bool remove_page_table(triple_list high_level_entry);
 
   private:
     uint64_t hash_function(Address address);
@@ -79,16 +77,12 @@ class HashPaging : public BasePaging {
         __attribute__((always_inline));
 
   public:
-    PageTable *pml4;
+    PageTable *hptr;
 
   private:
     PagingStyle mode;
-    uint64_t cur_pdp_num;
-    uint64_t cur_pd_num;
-    uint64_t cur_pt_num;
     uint64_t cur_pte_num;
     lock_t table_lock;
-    uint64_t error_migrated_pages;
     uint64_t table_size;
 };
 

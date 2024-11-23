@@ -24,30 +24,31 @@
 #include <vector>
 
 /*-----------Hash Paging--------------*/
-// PageTable* HashPaging::pml4;
+
 HashPaging::HashPaging(PagingStyle select)
-    : mode(select), cur_pdp_num(0), cur_pd_num(0), cur_pt_num(0) {
+    : mode(select) {
     PageTable *table = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
     assert(zinfo);
     if (zinfo->buddy_allocator) {
         Page *page = zinfo->buddy_allocator->allocate_pages(0);
         if (page) {
-            pml4 = new (table) PageTable(4096, page);
+            hptr = new (table) PageTable(4096, page);//page table size is 4096 PTEs
             table_size = 4096;
         } else {
             panic("Cannot allocate a page for page directory!");
         }
     } else {
-        pml4 = new (table) PageTable(4096);
+        hptr = new (table) PageTable(4096);
     }
     futex_init(&table_lock);
-    error_migrated_pages = 0;
+    cur_pte_num = 0;
 }
 
 HashPaging::~HashPaging() { remove_root_directory(); }
 
-/*****-----functional interface of LongMode-Paging----*****/
-uint64_t HashPaging::hash_function(Address address){
+/*****-----functional interface of Hash-Paging----*****/
+//cityhash for the hash function in hash table
+uint64_t HashPaging::hash_function(Address address) {
     uint64_t mask=0;
     for(uint64_t i=0 ;i<64 ;i++){
         mask+=(uint64_t)pow(2,i);
@@ -55,6 +56,18 @@ uint64_t HashPaging::hash_function(Address address){
     char*  new_address = (char*) address;
     uint64_t result=CityHash64((const char*)&address,8) & (mask);
     return result;
+}
+
+//find idle entry in hash table
+uint64_t HashPaging::allocate_table_entry(uint64_t hash_id) {
+    uint64_t i = hash_id;
+    while(i < table_size){
+        BasePDTEntry *entry = (*hptr)[i];
+        if(!entry->is_present()) return i;
+        hash_id=(hash_id+1)%table_size;
+        i++;
+    }
+    return -1;// hash table is full.
 }
 
 int HashPaging::map_page_table(Address addr, Page *pg_ptr) {
@@ -67,9 +80,11 @@ int HashPaging::map_page_table(uint32_t req_id, Address addr, Page *pg_ptr,
     BasePDTEntry *entry;
     int latency = map_page_table(addr, pg_ptr, entry);
     if (entry != NULL) {
+        cur_pte_num++;
+        // cout <<"allocated pte num: "<<cur_pte_num<<endl;
         entry->set_lrequester(req_id);
         entry->set_accessed();
-        entry->set_vpn(addr);
+        entry->set_vpn(get_bit_value<Address>(addr, 12, 47));
         if (is_write)
             entry->set_dirty();
     }
@@ -84,10 +99,12 @@ int HashPaging::map_page_table(Address addr, Page *pg_ptr,
     uint64_t vpageno =  get_bit_value<uint64_t>(addr, 12, 47);
     assert((vpageno != (unsigned)(-1)));
     int alloc_time = 0;
-    uint hash_id = hash_function(vpageno)%table_size;
-    validate_page(pml4, hash_id, pg_ptr);
-    assert(is_valid(pml4, hash_id));
-    mapped_entry = (*pml4)[hash_id];
+    uint64_t hash_id = hash_function(vpageno)%table_size;
+    uint64_t pt_id = allocate_table_entry(hash_id);
+    assert(pt_id != (unsigned)(-1));
+    validate_page(hptr, pt_id, pg_ptr);
+    assert(is_valid(hptr, pt_id));
+    mapped_entry = (*hptr)[pt_id];
     latency = zinfo->mem_access_time * (1 + alloc_time);
     return latency;
 }
@@ -98,54 +115,8 @@ bool HashPaging::unmap_page_table(Address addr) {
 }
 
 Address HashPaging::access(MemReq &req) {
-    Address addr = req.lineAddr;
-    unsigned pml4_id, pdp_id, pd_id, pt_id;
-    get_domains(addr, pml4_id, pdp_id, pd_id, pt_id, mode);
-    // point to page table pointer table
-    PageTable *pdp_ptr = get_next_level_address<PageTable>(pml4, pml4_id);
-    if (!pdp_ptr) {
-        return PAGE_FAULT_SIG;
-    }
-    if (mode == LongMode_Huge) {
-        req.cycle += (zinfo->mem_access_time * 2);
-    }
-    // point to page or page directory
-    void *ptr = get_next_level_address<void>(pdp_ptr, pdp_id);
-    if (!ptr) {
-        return PAGE_FAULT_SIG;
-    }
-    if (mode == LongMode_Middle) {
-        assert(pd_id != (unsigned)(-1));
-        // point to page
-        ptr = get_next_level_address<void>((PageTable *)ptr, pd_id);
-        req.cycle += (zinfo->mem_access_time * 3);
-        if (!ptr) {
-            return PAGE_FAULT_SIG;
-        }
-    } else if (mode == LongMode_Normal) {
-        assert(pd_id != (unsigned)(-1));
-        assert(pt_id != (unsigned)(-1));
-        // point to page table
-        ptr = get_next_level_address<void>((PageTable *)ptr, pd_id);
-        req.cycle += (zinfo->mem_access_time * 4);
-        if (!ptr) {
-            return PAGE_FAULT_SIG;
-        }
-        // point to page
-        ptr = get_next_level_address<void>((PageTable *)ptr, pt_id);
-        if (!ptr) {
-            return PAGE_FAULT_SIG;
-        }
-    }
-    /* bool write_back = false;
-    uint32_t access_counter = 0;
-    if( req.type==WRITEBACK)
-    {
-            access_counter = req.childId;
-            write_back = true;
-    }
-    return get_block_id(req,ptr, write_back ,access_counter); */
-    return ((Page *)ptr)->pageNo;
+    assert(0); //shouldn't come here
+    return 0;
 }
 
 uint64_t HashPaging::loadPageTables(MemReq &req,
@@ -219,23 +190,22 @@ Address HashPaging::access(MemReq &req, g_vector<MemObject *> &parents,
     Address addr = req.lineAddr << lineBits;
     Address vpageno = get_bit_value<Address>(addr, 12, 47);
     uint64_t hash_id = hash_function(vpageno) % table_size;
-    // TUBUXIN: only once push, in ideal hash cases.
-    pgt_addrs.push_back(getPGTAddr(pml4->get_page_no(), hash_id%512));
-    BasePDTEntry *ht_ptr = (*(PageTable *)pml4)[hash_id];
+    pgt_addrs.push_back(getPGTAddr(hptr->get_page_no(), hash_id%512));
+    BasePDTEntry *ht_ptr = (*(PageTable *)hptr)[hash_id];
     //TUBUXIN: this is open addressing codes, todo: modify the page fault codes to use it.
-    // void *ptr = NULL;
-    // while(ht_ptr->is_page_assigned() && hash_id < table_size) {
-    //     if(ht_ptr->get_vpn() == vpageno) {
-    //         ptr = get_next_level_address<void>(pml4, hash_id);
-    //         break;
-    //     }
+    void *ptr = NULL;
+    while(ht_ptr->is_page_assigned() && hash_id < table_size) {
+        if(ht_ptr->get_vpn() == vpageno) {
+            ptr = get_next_level_address<void>(hptr, hash_id);
+            break;
+        }
             
-    //     hash_id++;
-    //     ht_ptr = (*(PageTable *)pml4)[hash_id];
-    //     pgt_addrs.push_back(getPGTAddr(pml4->get_page_no(), hash_id%512));
-    // }
-    void *ptr = get_next_level_address<void>(pml4, hash_id);
-    if (!ptr) { //TUBUXIN: PTE that accessed don't get the page ptr
+        hash_id++;
+        ht_ptr = (*(PageTable *)hptr)[hash_id];
+        pgt_addrs.push_back(getPGTAddr(hptr->get_page_no(), hash_id%512));
+    }
+    ptr = get_next_level_address<void>(hptr, hash_id);
+    if (!ptr) { //PTE that accessed don't get the page ptr
         req.cycle =
             loadPageTables(req, pgt_addrs, parents, parentRTTs, sendPTW);
         return PAGE_FAULT_SIG;
@@ -248,8 +218,6 @@ Address HashPaging::access(MemReq &req, g_vector<MemObject *> &parents,
             req.triggerPageDirty = true;
         ht_ptr->set_dirty();
     }
-    if (req.triggerPageShared && ht_ptr->remapped_times)
-        error_migrated_pages++;
     req.pageDirty = ht_ptr->is_dirty();
     req.pageShared = ht_ptr->is_shared();
     req.cycle = loadPageTables(req, pgt_addrs, parents, parentRTTs, sendPTW);
@@ -259,23 +227,25 @@ Address HashPaging::access(MemReq &req, g_vector<MemObject *> &parents,
 // allocate
 
 bool HashPaging::allocate_page_table(Address addr, Address size) {
+    //need to implement(however, hash table is not suitable for this)
     return true;
 }
 
 // remove
 void HashPaging::remove_root_directory() {
-    if (pml4) {
-        for (unsigned i = 0; i < ENTRY_512; i++) {
-            if (is_present(pml4, i)) {
-                //need to implement
+    if (hptr) {
+        for (unsigned i = 0; i < 4096; i++) {
+            if (is_present(hptr, i)) {
+                invalidate_page(hptr, i);
             }
         }
-        delete pml4;
-        pml4 = NULL;
+        delete hptr;
+        hptr = NULL;
     }
 }
 
 bool HashPaging::remove_page_table(Address addr, Address size) {
+    //need to implement(have not seen where to use it)
     return true;
 }
 
