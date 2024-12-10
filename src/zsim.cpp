@@ -1308,6 +1308,10 @@ VOID SimEnd() {
 				zinfo->paging_array[i]->calculate_stats(vmof);
 			}
 		}
+        std::ofstream addrof;
+        std::string addr_outfile = zinfo->outputDir;
+        addr_outfile += "/address.out";
+        addrof.open(addr_outfile,std::ios_base::out);
 		uint64_t total_access_time = 0;
 		//print tlb statistic
 		if( zinfo->cores ){
@@ -1317,19 +1321,24 @@ VOID SimEnd() {
 					total_access_time += i_core->getInsTlb()->calculate_stats(vmof);
 				}
 				if( i_core->getDataTlb() ){
+                    addrof << "dtlb" << i << ":" << std::endl;
 					total_access_time += i_core->getDataTlb()->calculate_stats(vmof);
+                    i_core->getDataTlb()->address_stats(addrof);
 				}
 			}
 		}
-		vmof<<"total TLB access time is:"<<total_access_time<<std::endl;
-		if( zinfo->pg_walkers){
+		vmof<<"total TLB access time: "<<total_access_time<<std::endl;
+		if( zinfo->pg_walkers ){
+            uint64_t total_ptw_overhead = 0;
 			for( unsigned i=0; i<zinfo->numCores; i++){
 				if( zinfo->pg_walkers[i])
 				    zinfo->pg_walkers[i]->calculate_stats(vmof);
+                    total_ptw_overhead += zinfo->pg_walkers[i]->address_stats(addrof);
 			}
+            vmof<<"total PTW overhead: "<<total_ptw_overhead<<std::endl;
 		}
 
-        if (zinfo->sched) zinfo->sched->notifyTermination();
+        if ( zinfo->sched ) zinfo->sched->notifyTermination();
     }
 
     //Uncomment when debugging termination races, which can be rare because they are triggered by threads of a dying process

@@ -8,6 +8,7 @@
 *.stats
 .vscode
 /tests/benchmarks/workloads/*
+/tests/benchmarks/hpcc
 *.o
 *.a
 out.cfg

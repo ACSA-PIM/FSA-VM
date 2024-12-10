@@ -22,7 +22,7 @@
 #include <iterator>
 #include <list>
 #include <vector>
-
+#include <unordered_map>
 /*-----------Hash Paging--------------*/
 
 HashPaging::HashPaging(PagingStyle select)
@@ -32,13 +32,13 @@ HashPaging::HashPaging(PagingStyle select)
     if (zinfo->buddy_allocator) {
         Page *page = zinfo->buddy_allocator->allocate_pages(0);
         if (page) {
-            hptr = new (table) PageTable(4096, page);//page table size is 4096 PTEs
-            table_size = 4096;
+            hptr = new (table) PageTable(65536, page);//page table size is 65536 PTEs
+            table_size = 65536;
         } else {
             panic("Cannot allocate a page for page directory!");
         }
     } else {
-        hptr = new (table) PageTable(4096);
+        hptr = new (table) PageTable(65536);
     }
     futex_init(&table_lock);
     cur_pte_num = 0;
@@ -205,7 +205,7 @@ Address HashPaging::access(MemReq &req, g_vector<MemObject *> &parents,
         pgt_addrs.push_back(getPGTAddr(hptr->get_page_no(), hash_id%512));
     }
     ptr = get_next_level_address<void>(hptr, hash_id);
-    if (!ptr) { //PTE that accessed don't get the page ptr
+    if (!ptr) { //PTE accessed don't get the page ptr
         req.cycle =
             loadPageTables(req, pgt_addrs, parents, parentRTTs, sendPTW);
         return PAGE_FAULT_SIG;
@@ -234,7 +234,7 @@ bool HashPaging::allocate_page_table(Address addr, Address size) {
 // remove
 void HashPaging::remove_root_directory() {
     if (hptr) {
-        for (unsigned i = 0; i < 4096; i++) {
+        for (unsigned i = 0; i < 65536; i++) {
             if (is_present(hptr, i)) {
                 invalidate_page(hptr, i);
             }

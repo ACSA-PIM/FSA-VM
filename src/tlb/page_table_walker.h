@@ -12,6 +12,7 @@
 
 #include <fstream>
 #include <map>
+#include <unordered_map>
 
 #include "common/global_const.h"
 #include "g_std/g_string.h"
@@ -61,9 +62,9 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
         paging->lock();
         futex_lock(&walker_lock);
         // addr = paging->access(req);
+        ptw_address[(req.lineAddr << line_shift)]++;
         addr =
             paging->access(req, parents, parentRTTs, cRec, enable_timing_mode);
-
         tlb_miss_exclude_shootdown += (req.cycle - init_cycle);
         // page fault
         if (addr == PAGE_FAULT_SIG) {
@@ -131,7 +132,14 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
              << " clflush overhead caused extra write:" << extra_write
              << std::endl;
     }
-
+    uint64_t address_stats(std::ofstream &addrof) {
+        for (const auto &entry : ptw_address) {
+            addrof << "PTW Virtual Page: " << entry.first << ", Count: "
+                   << entry.second << std::endl;
+        }
+        addrof << "PTW Virtual Page num: " << period << std::endl;
+        return tlb_miss_overhead;
+    }
     Address do_page_fault(MemReq &req, PAGE_FAULT fault_type) {
         // allocate one page from Zone_Normal area
         debug_printf("page falut, allocate free page through buddy allocator");
@@ -384,6 +392,7 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
     g_vector<uint32_t> parentRTTs;
     uint32_t selfId;
     uint64_t period;
+    unordered_map<Address, uint64_t> ptw_address;
     unsigned long long tlb_shootdown_overhead;
     unsigned long long dram_map_overhead;
 

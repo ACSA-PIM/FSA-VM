@@ -10,6 +10,7 @@
 #ifndef COMMON_TLB_H_
 #define COMMON_TLB_H_
 #include <set>
+#include <unordered_map>
 
 #include "common/common_functions.h"
 #include "common/common_structures.h"
@@ -54,6 +55,7 @@ template <class T> class CommonTlb : public BaseTlb {
         Address virt_addr = req.lineAddr << line_shift;
         Address offset = virt_addr & (page_size - 1);
         Address vpn = virt_addr >> page_shift;
+        tlb_address[vpn]++;
         T *entry = look_up(vpn);
         Address ppn;
         // TLB miss
@@ -72,6 +74,7 @@ template <class T> class CommonTlb : public BaseTlb {
                 new_entry.set_page_shared();
             if (req.pageDirty)
                 new_entry.set_page_dirty();
+            // std::cout << "insert vpn: " << vpn << " ppn: " << ppn << std::endl;
             insert(vpn, new_entry);
         } else // TLB hit
         {
@@ -300,18 +303,26 @@ template <class T> class CommonTlb : public BaseTlb {
 
     uint64_t calculate_stats(std::ofstream &vmof) {
         double tlb_hit_rate = (double)tlb_hit_time / (double)tlb_access_time;
+        double tlb_miss_rate = (double)insert_num / (double)tlb_access_time;
         // info("%s access time:%lu \t hit time: %lu \t miss time: %lu \t evict
         // time:%lu \t hit rate:%.3f",tlb_name_.c_str() , tlb_access_time,
         // tlb_hit_time, (tlb_access_time - tlb_hit_time),tlb_evict_time,
         // tlb_hit_rate);
         vmof << tlb_name_ << " access time:" << tlb_access_time
              << "\t hit time:" << tlb_hit_time
-             << "\t miss time:" << (tlb_access_time - tlb_hit_time)
+             << "\t miss time:" << insert_num
              << "\t evict time:" << tlb_evict_time
              << "\t hit rate:" << tlb_hit_rate << std::endl;
-        ;
         return tlb_access_time;
     }
+
+    void address_stats(std::ofstream &addrof) {
+        for (const auto& entry : tlb_address) {
+            addrof << "TLB Virtual Page: " << std::hex << entry.first << ", Count: " << std::dec <<entry.second << std::endl;
+        }
+        addrof << "Total Virtual Page num: " << tlb_access_time << std::endl;
+    }
+
     void clear_counter() {
         futex_lock(&tlb_lock);
         for (unsigned i = 0; i < tlb_entry_num; i++) {
@@ -335,7 +346,7 @@ template <class T> class CommonTlb : public BaseTlb {
     uint64_t tlb_access_time;
     uint64_t tlb_hit_time;
     uint64_t tlb_evict_time;
-
+    std::unordered_map<Address, uint64_t> tlb_address;
     T **tlb;
     g_list<T *> free_entry_list;
 

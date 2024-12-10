@@ -24,7 +24,7 @@
 # define POLYBENCH_H
 
 # include <stdlib.h>
-#include "/u/yc9uf/Workspace/MultiPIM/misc/hooks/zsim_hooks.h"
+#include "/root/FSA-VM/tests/benchmarks/zsim_hooks.h"
 
 /* Array padding. By default, none is used. */
 # ifndef POLYBENCH_PADDING_FACTOR

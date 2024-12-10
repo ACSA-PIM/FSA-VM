@@ -217,7 +217,8 @@ class BaseTlb: public MemObject{
 		virtual void set_parent(BasePageTableWalker* base_pg_walker) = 0;
 		virtual BasePageTableWalker* get_page_table_walker(){ return NULL;};
 		virtual uint64_t calculate_stats(){};
-        virtual uint64_t calculate_stats(std::ofstream &vmof){}
+        virtual uint64_t calculate_stats(std::ofstream &vmof){};
+        virtual void address_stats(std::ofstream &addrof){};
 		virtual uint64_t get_access_time(){ return 0; }
         virtual void setSourceId(uint32_t id){};
         virtual void setFlags(uint32_t flags){};
@@ -252,7 +253,7 @@ class BasePaging: public MemObject
 		{ return true; }
         // virtual Address get_vpn( Address ppn ){return -1;}
         virtual bool is_page_shared(Address ppn){return false;}
-		
+		virtual void address_stats(std::ofstream &addrof){}
         virtual void calculate_stats(std::ofstream &vmof){}
 		virtual void calculate_stats(){}
         virtual void setCoreRecorder(BaseCoreRecorder* _cRec) {}
@@ -270,7 +271,7 @@ class BasePageTableWalker: public BaseCache
 		virtual void convert_to_dirty( Address block_id){}
         virtual void calculate_stats(std::ofstream &vmof){}
 		virtual void calculate_stats(){}
-
+        uint64_t address_stats(std::ofstream &addrof){}
         virtual void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network) {};
         virtual void setChildren(const g_vector<BaseCache*>& children, Network* network){ assert(0);/*should never executed*/};
         virtual uint64_t invalidate(const InvReq& req){assert(0);/* should never executed */};

@@ -19,7 +19,6 @@
 #include "page-table/page_table_entry.h"
 #include <iterator>
 #include <map>
-
 /*#----Hash-Paging(supports 4KB&&2MB&&1GB)---#*/
 class HashPaging : public BasePaging {
   public:
