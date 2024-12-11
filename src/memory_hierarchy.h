@@ -129,7 +129,7 @@ struct MemReq {
     //for PTW
     bool isFirstPTW;
     bool isLastPTW;
-
+    bool pwc_hit;
     bool pageShared;
     bool pageDirty;
     bool triggerPageShared;

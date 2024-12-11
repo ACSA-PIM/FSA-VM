@@ -20,6 +20,7 @@
 #include "page_table_entry.h"
 #include "timing_event.h"
 #include "zsim.h"
+#include "pw_cache.h"
 #include <iterator>
 #include <list>
 #include <vector>
@@ -680,6 +681,7 @@ LongModePaging::LongModePaging(PagingStyle select)
     } else {
         pml4 = new (table) PageTable(512);
     }
+    pwl4 = new pw_cache(64, 4, 10, 10, "PWC_L4");
     // if (select == LongMode_Normal) //4KB
     // {
     // 	zinfo->page_size = 4 * power(2, 10);
@@ -968,8 +970,24 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
     g_vector<uint64_t> pgt_addrs;
     Address addr = req.lineAddr << lineBits;
     unsigned pml4_id, pdp_id, pd_id, pt_id;
+    Address pgAddr;
+    bool pwc_hit = false;
     get_domains(addr, pml4_id, pdp_id, pd_id, pt_id, mode);
-    pgt_addrs.push_back(getPGTAddr(pml4->get_page_no(), pml4_id));
+    // access translation cache
+    pgAddr = getPGTAddr(pml4->get_page_no(), pml4_id);
+    uint64_t lineAddr = pgAddr >> lineBits;
+    MESIState dummyState = MESIState::I;
+    MemReq pwc_req = {lineAddr,    GETS,       req.childId,
+                        &dummyState, req.cycle, req.childLock,
+                        dummyState,  req.srcId,  req.flags};
+    pwc_req.threadId = req.threadId;
+    pwc_req.isPIMInst = req.isPIMInst;
+    req.cycle += pwl4->access(pwc_req);
+    pwl4->access_count++;
+    if(!pwc_req.pwc_hit) {
+        pgt_addrs.push_back(pgAddr);
+        pwl4->miss_count++;
+    }
     // point to page table pointer table
     PageTable *pdp_ptr = get_next_level_address<PageTable>(pml4, pml4_id);
     BasePDTEntry *pdt_ptr = NULL;
@@ -978,7 +996,9 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
             loadPageTables(req, pgt_addrs, parents, parentRTTs, sendPTW);
         return PAGE_FAULT_SIG;
     }
-    pgt_addrs.push_back(getPGTAddr(pdp_ptr->get_page_no(), pdp_id));
+    // pgAddr = getPGTAddr(pdp_ptr->get_page_no(), pdp_id);
+    // pwc_hit = pw_cache->access(pgAddr, 3, req);
+    // if(pwc_hit == false) pgt_addrs.push_back(pgAddr);
     if (mode == LongMode_Huge) {
         pt_id = pdp_id;
         pdt_ptr = (*(PageTable *)pdp_ptr)[pdp_id];
@@ -1005,8 +1025,9 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
     } else if (mode == LongMode_Normal) {
         assert(pd_id != (unsigned)(-1));
         assert(pt_id != (unsigned)(-1));
-        pgt_addrs.push_back(
-            getPGTAddr(((PageTable *)ptr)->get_page_no(), pd_id));
+        // pgAddr = getPGTAddr(((PageTable *)ptr)->get_page_no(), pd_id);
+        // pwc_hit = pw_cache->access(pgAddr, 2, req);
+        // if(pwc_hit == false) pgt_addrs.push_back(pgAddr);
         // point to page table
         ptr = get_next_level_address<void>((PageTable *)ptr, pd_id);
         if (!ptr) {
