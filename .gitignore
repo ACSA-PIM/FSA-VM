@@ -11,5 +11,7 @@
 /tests/benchmarks/hpcc
 *.o
 *.a
+*.pc
+.sconsign.dblite
 out.cfg
 heartbeat
