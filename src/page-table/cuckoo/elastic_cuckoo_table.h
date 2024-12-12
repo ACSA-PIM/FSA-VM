@@ -14,8 +14,8 @@
 #include <math.h>
 #include <vector>
 
-#define uint64_t unsigned long long
-#define uint32_t unsigned long
+// #define uint64_t unsigned long long
+// #define uint32_t unsigned long
 
 #define hsize(n) ((uint64_t)1 << (n))
 #define hmask(n) (hsize(n) - 1)

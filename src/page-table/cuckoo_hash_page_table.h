@@ -8,7 +8,7 @@
 #include "memory_hierarchy.h"
 #include "page-table/comm_page_table_op.h"
 #include "page-table/page_table_entry.h"
-// #include "./cuckoo/elastic_cuckoo_table.h"
+#include "./cuckoo/elastic_cuckoo_table.h"
 #include "log.h"
 #include "zsim.h"
 #include <iterator>
