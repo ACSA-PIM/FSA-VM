@@ -82,6 +82,7 @@
 #include "page-table/comm_page_table_op.h"
 #include "page-table/page_table.h"
 #include "page-table/hash_page_table.h"
+#include "page-table/cuckoo_hash_page_table.h"
 #include "page-table/reversed_page_table.h"
 #include "memory_hierarchy.h"
 #include "cd_arrays.h"
@@ -627,6 +628,10 @@ static void InitSystem(Config& config) {
                 zinfo->page_size = 4 * power(2, 10);//4KB
                 zinfo->page_shift = 12;
                 break;
+            case Cuckoo_Hash:
+                zinfo->page_size = 4 * power(2, 10); //4KB
+                zinfo->page_shift = 12;       
+                break;     
             default:
                 assert(0);
         }
@@ -980,6 +985,7 @@ static void InitSystem(Config& config) {
                         LongModePaging* longmode_paging;
                         ReversedPaging* reversed_paging;
                         HashPaging* hash_paging;
+                        CuckooHashPaging* cuckoo_hash_paging;
                     }; 
                     zinfo->paging_array = gm_memalign<BasePaging*>(CACHE_LINE_BYTES , zinfo->numProcs);
                     string mode_str = pagingmode_to_string(zinfo->paging_mode);
@@ -992,6 +998,8 @@ static void InitSystem(Config& config) {
                             longmode_paging = gm_memalign<LongModePaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                         if( mode_str == "Hash_Normal")
                             hash_paging = gm_memalign<HashPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
+                        if( mode_str == "Cuckoo_Hash")
+                            cuckoo_hash_paging = gm_memalign<CuckooHashPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                     } else if( reversed_pgt || zinfo->enable_shared_memory ){
                         reversed_paging = gm_memalign<ReversedPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                     }
@@ -1008,6 +1016,10 @@ static void InitSystem(Config& config) {
                             if( mode_str == "Hash_Normal") {
                                 info("Create Hash page table");
                                 zinfo->paging_array[i] = new (&hash_paging[i])HashPaging(zinfo->paging_mode);
+                            }
+                            if( mode_str == "Cuckoo_Hash") {
+                                info("Create Cuckoo Hash page table");
+                                zinfo->paging_array[i] = new (&cuckoo_hash_paging[i])CuckooHashPaging(zinfo->paging_mode);
                             }
                         }else if( reversed_pgt || zinfo->enable_shared_memory){
                             info("Create reversed paging");
