@@ -13,7 +13,7 @@
 #include "common/common_functions.h"
 #include "common/global_const.h"
 #include "locks.h"
-#include "page-table/city.h"
+#include "page-table/cuckoo/city.h"
 #include "memory_hierarchy.h"
 #include "page-table/comm_page_table_op.h"
 #include "page-table/page_table_entry.h"

@@ -8,6 +8,9 @@
 #include <string.h>
 #include <vector>
 
+#include "galloc.h"
+#include "pad.h"
+
 #include "elastic_cuckoo_table.h"
 //#define DEBUG 1
 
@@ -57,10 +60,12 @@ void create(uint32_t d, uint64_t size, cuckooTable_t *hashtable,
 #endif
   }
 
-  hashtable->hashtable = (elem_t **)malloc(d * sizeof(elem_t *));
+  // hashtable->hashtable = (elem_t **)malloc(d * sizeof(elem_t *));
+  hashtable->hashtable = gm_memalign<elem_t*>(CACHE_LINE_BYTES, d);
   for (i = 0; i < hashtable->d; i++) {
-    hashtable->hashtable[i] =
-        (elem_t *)malloc(hashtable->size * sizeof(elem_t));
+    hashtable->hashtable[i] = gm_memalign<elem_t>(CACHE_LINE_BYTES, hashtable->size);
+    // hashtable->hashtable[i] =
+    //     (elem_t *)malloc(hashtable->size * sizeof(elem_t));
     for (j = 0; j < hashtable->size; j++) {
       hashtable->hashtable[i][j].valid = 0;
       hashtable->hashtable[i][j].value = i;
@@ -71,7 +76,8 @@ void create(uint32_t d, uint64_t size, cuckooTable_t *hashtable,
 void create_elastic(uint32_t d, uint64_t size, elasticCuckooTable_t *hashtable,
                     char *hash_func, float rehash_threshold, uint32_t scale,
                     uint32_t swaps, uint8_t priority) {
-  hashtable->current = (cuckooTable_t *)malloc(sizeof(cuckooTable_t));
+  // hashtable->current = (cuckooTable_t *)malloc(sizeof(cuckooTable_t));
+  hashtable->current = gm_memalign<cuckooTable_t>(CACHE_LINE_BYTES, 1);
   hashtable->migrate = NULL;
   hashtable->rehash_threshold = rehash_threshold;
   hashtable->rehashing = 0;

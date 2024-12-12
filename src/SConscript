@@ -15,6 +15,8 @@ excludeSrcs = [
 ]
 excludeSrcs += harnessSrcs
 
+env.Append(CCFLAGS=['-mrdrnd'])
+
 libEnv = env.Clone()
 libEnv["CPPFLAGS"] += libEnv["PINCPPFLAGS"]
 libEnv["LINKFLAGS"] += libEnv["PINLINKFLAGS"]
@@ -26,8 +28,9 @@ def getSyscalls(): return os.popen("python ../../misc/list_syscalls.py").read().
 syscallSrc = libEnv.Substfile("virt/syscall_name.cpp", "virt/syscall_name.cpp.in",
         SUBST_DICT = {"SYSCALL_NAME_LIST" : getSyscalls()})
 
+
 # Build libzsim.so
-globSrcNodes = Glob("*.cpp") + Glob("virt/*.cpp") + Glob("ramulator/*.cpp") + Glob("common/*.cpp") + Glob("page-table/*.cpp") + Glob("mmu/*.cpp") + Glob("tlb/*.cpp")
+globSrcNodes = Glob("*.cpp") + Glob("virt/*.cpp") + Glob("ramulator/*.cpp") + Glob("common/*.cpp") + Glob("page-table/*.cpp") + Glob("mmu/*.cpp") + Glob("tlb/*.cpp") + Glob("page-table/cuckoo/*.cc")
 libSrcs = [str(x) for x in globSrcNodes if str(x) not in excludeSrcs]
 libSrcs += [str(x) for x in syscallSrc]
 libSrcs = list(set(libSrcs)) # ensure syscallSrc is not duplicated

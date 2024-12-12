@@ -36,7 +36,7 @@ public:
     void unlock() { futex_unlock(&table_lock); };
 
     vector<PageTable*> cuckoo_hash_tables;
-    // elasticCuckooTable_t elasticCuckooHT_4KB;
+    elasticCuckooTable_t elasticCuckooHT_4KB;
 
 private:
     PagingStyle mode;

@@ -7,9 +7,21 @@ CuckooHashPaging::CuckooHashPaging(PagingStyle select)
         Page *page = zinfo->buddy_allocator->allocate_pages(0);
         if (page) {
             for (uint64_t i = 0; i < CUCKOO_WAYS; ++i) {
-                PageTable *table = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
-                cuckoo_hash_tables.push_back(new (table) PageTable(CUCKOO_TABLE_SIZE, page));
-            }            
+                elasticCuckooTable_t* hashtable = gm_memalign<elasticCuckooTable_t>(CACHE_LINE_BYTES, 1);
+                if (!hashtable) {
+                    panic("Failed to allocate memory for elasticCuckooTable_t!");
+                }
+                create_elastic(
+                    /* d */ 4, 
+                    /* size */ CUCKOO_TABLE_SIZE, 
+                    hashtable, 
+                    /* hash_func */ "blake2", 
+                    /* rehash_threshold */ 0.8, 
+                    /* scale */ 1, 
+                    /* swaps */ 10, 
+                    /* priority */ 0);
+                cuckoo_hash_tables.push_back(reinterpret_cast<PageTable*>(hashtable));
+            }         
             table_size = CUCKOO_TABLE_SIZE;
         } else {
             panic("Cannot allocate a page for page directory!");
