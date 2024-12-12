@@ -8,8 +8,8 @@
  * Copyright (C) 2024 Buxin Tu (tubuxin0621@gmail.com)
  */
 
-#ifndef _HASH_TABLE_H
-#define _HASH_TABLE_H
+#ifndef _HASH_PAGE_TABLE_H
+#define _HASH_PAGE_TABLE_H
 #include "common/common_functions.h"
 #include "common/global_const.h"
 #include "locks.h"

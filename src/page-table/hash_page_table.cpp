@@ -8,7 +8,7 @@
  * Copyright (C) 2024 Buxin Tu (tubuxin0621@gmail.com)
  */
 
-#include "page-table/hash_table.h"
+#include "page-table/hash_page_table.h"
 #include "common/common_functions.h"
 #include "core.h"
 #include "galloc.h"

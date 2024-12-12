@@ -81,7 +81,7 @@
 #include "tlb/tlb_entry.h"
 #include "page-table/comm_page_table_op.h"
 #include "page-table/page_table.h"
-#include "page-table/hash_table.h"
+#include "page-table/hash_page_table.h"
 #include "page-table/reversed_page_table.h"
 #include "memory_hierarchy.h"
 #include "cd_arrays.h"
