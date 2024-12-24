@@ -32,13 +32,13 @@ HashPaging::HashPaging(PagingStyle select)
     if (zinfo->buddy_allocator) {
         Page *page = zinfo->buddy_allocator->allocate_pages(0);
         if (page) {
-            hptr = new (table) PageTable(65536, page);//page table size is 65536 PTEs
-            table_size = 65536;
+            hptr = new (table) PageTable(67108864, page);//page table size is DDDD PTEs
+            table_size = 67108864;
         } else {
             panic("Cannot allocate a page for page directory!");
         }
     } else {
-        hptr = new (table) PageTable(65536);
+        hptr = new (table) PageTable(67108864);
     }
     futex_init(&table_lock);
     cur_pte_num = 0;
@@ -234,7 +234,7 @@ bool HashPaging::allocate_page_table(Address addr, Address size) {
 // remove
 void HashPaging::remove_root_directory() {
     if (hptr) {
-        for (unsigned i = 0; i < 65536; i++) {
+        for (unsigned i = 0; i < 67108864; i++) {
             if (is_present(hptr, i)) {
                 invalidate_page(hptr, i);
             }

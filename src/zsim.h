@@ -230,6 +230,11 @@ struct GlobSimInfo {
 	unsigned block_size;
     unsigned life_time;
     BasePaging** paging_array;
+    bool pwc_enable;
+    g_vector<unsigned> pwc_ways;
+    g_vector<unsigned> pwc_size;
+    uint32_t pwc_accLat;
+    uint32_t pwc_invLat;
 	BasePageTableWalker** pg_walkers;
     /*####tlb related #####*/
     bool tlb_enabled;

@@ -4,10 +4,10 @@
 #define PW_CACHE_H_
 
 #include "memory_hierarchy.h"
-#include "g_std/g_string.h"
 #include "g_std/g_vector.h"
 #include "ramulator_mem_ctrl.h"
 #include "stats.h"
+#include "zsim.h"
 #include <unordered_map>
 #include <unordered_set>
 /* Extends Cache with an L0 direct-mapped cache, optimized to hell for hits
@@ -53,14 +53,40 @@ class pw_cache : public MemObject {
         pwc_Array* array;
         uint32_t numLines;
         uint32_t access_count;
+        string name;
         uint32_t miss_count;
     protected:
         uint32_t accLat;
         uint32_t invLat;
-        g_string name;
-
     public:
-        pw_cache(uint32_t _numLines,  uint32_t assoc, uint32_t _accLat, uint32_t _invLat, const g_string& _name);
+        pw_cache(uint32_t _numLines,  uint32_t assoc, uint32_t _accLat, uint32_t _invLat, const string& _name);
         virtual uint64_t access(MemReq& req);
 };
+
+class pwc_group : public MemObject {
+    public:
+        unordered_map<string, pw_cache*> caches;
+        unordered_map<string, uint32_t> access_count;
+        unordered_map<string, uint32_t> miss_count;
+    protected:  
+        uint32_t accLat;
+        uint32_t invLat;
+    
+    public:
+        pwc_group(std::initializer_list<pw_cache*> cache_list) {
+            for (auto cache : cache_list) {
+                caches[cache->name] = cache;
+                access_count[cache->name] = 0;
+                miss_count[cache->name] = 0;
+            }
+            accLat = zinfo->pwc_accLat;
+            invLat = zinfo->pwc_invLat;
+        }
+        virtual uint64_t access(MemReq& req){return req.lineAddr;};
+        virtual uint64_t access(MemReq& req, const string& name) { 
+            access_count[name]++;
+            return caches[name]->access(req); 
+        };
+};
+
 #endif

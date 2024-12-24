@@ -1329,13 +1329,11 @@ VOID SimEnd() {
 		}
 		vmof<<"total TLB access time: "<<total_access_time<<std::endl;
 		if( zinfo->pg_walkers ){
-            uint64_t total_ptw_overhead = 0;
 			for( unsigned i=0; i<zinfo->numCores; i++){
 				if( zinfo->pg_walkers[i])
 				    zinfo->pg_walkers[i]->calculate_stats(vmof);
-                    total_ptw_overhead += zinfo->pg_walkers[i]->address_stats(addrof);
+                    zinfo->pg_walkers[i]->address_stats(addrof);
 			}
-            vmof<<"total PTW overhead: "<<total_ptw_overhead<<std::endl;
 		}
 
         if ( zinfo->sched ) zinfo->sched->notifyTermination();

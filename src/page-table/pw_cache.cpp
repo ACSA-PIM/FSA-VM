@@ -1,5 +1,4 @@
 #include "memory_hierarchy.h"
-#include "g_std/g_string.h"
 #include "g_std/g_vector.h"
 #include "ramulator_mem_ctrl.h"
 #include "stats.h"
@@ -47,7 +46,7 @@ void pwc_Array::insert(Address lineAddr) {
 
 // pw_cache codes
 
-pw_cache::pw_cache(uint32_t _numLines, uint32_t assoc, uint32_t _accLat, uint32_t _invLat, const g_string& _name) 
+pw_cache::pw_cache(uint32_t _numLines, uint32_t assoc, uint32_t _accLat, uint32_t _invLat, const string& _name) 
     : numLines(_numLines), accLat(_accLat), invLat(_invLat), name(_name), access_count(0), miss_count(0) {
         array = new pwc_Array(numLines, assoc);
     }

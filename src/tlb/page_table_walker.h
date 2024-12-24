@@ -86,6 +86,7 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
         procIdx = proc_id;
         paging = copied_paging;
         futex_unlock(&walker_lock);
+        copied_paging->setPTW(this);
     }
 
     const char *getName() { return pg_walker_name.c_str(); }
@@ -132,13 +133,21 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
              << " clflush overhead caused extra write:" << extra_write
              << std::endl;
     }
-    uint64_t address_stats(std::ofstream &addrof) {
+    void address_stats(std::ofstream &addrof) {
         for (const auto &entry : ptw_address) {
             addrof << "PTW Virtual Page: " << entry.first << ", Count: "
                    << entry.second << std::endl;
         }
         addrof << "PTW Virtual Page num: " << period << std::endl;
-        return tlb_miss_overhead;
+        addrof << "PWC L4 access time: " << pwc->access_count["pwl4"] << std::endl;
+        addrof << "PWC L3 access time: " << pwc->access_count["pwl3"] << std::endl;
+        addrof << "PWC L2 access time: " << pwc->access_count["pwl2"] << std::endl;
+        addrof << "PWC L4 miss time: " << pwc->miss_count["pwl4"] << std::endl;
+        addrof << "PWC L3 miss time: " << pwc->miss_count["pwl3"] << std::endl;
+        addrof << "PWC L2 miss time: " << pwc->miss_count["pwl2"] << std::endl;
+        addrof << "PWC L4 miss rate: " << (double)pwc->miss_count["pwl4"]/(double)pwc->access_count["pwl4"]*100 << std::endl;
+        addrof << "PWC L3 miss rate: " << (double)pwc->miss_count["pwl3"]/(double)pwc->access_count["pwl4"]*100 << std::endl;
+        addrof << "PWC L2 miss rate: " << (double)pwc->miss_count["pwl2"]/(double)pwc->access_count["pwl4"]*100 << std::endl;
     }
     Address do_page_fault(MemReq &req, PAGE_FAULT fault_type) {
         // allocate one page from Zone_Normal area
@@ -380,6 +389,14 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
         }
     }
 
+    void Setpwc(g_vector<unsigned>& size, g_vector<unsigned>& assoc, uint32_t accLat, uint32_t invLat) {
+            pw_cache *pwl4 = new pw_cache(size[0], assoc[0], accLat, invLat, "pwl4");
+            pw_cache *pwl3 = new pw_cache(size[1], assoc[1], accLat, invLat, "pwl3");
+            pw_cache *pwl2 = new pw_cache(size[2], assoc[2], accLat, invLat, "pwl2");
+            pwc = new pwc_group({pwl4, pwl3, pwl2});
+            // std::cout<<"pwc group is created: "<<pwc->caches.size()<<std::endl;
+    }
+    pwc_group* Getpwc() { return pwc; }
     void setCoreRecorder(BaseCoreRecorder *_cRec) { cRec = _cRec; }
 
   public:
@@ -390,6 +407,7 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
     BaseCoreRecorder *cRec; // the Core Recorder of corresponding core
     g_vector<MemObject *> parents;
     g_vector<uint32_t> parentRTTs;
+    pwc_group *pwc;
     uint32_t selfId;
     uint64_t period;
     unordered_map<Address, uint64_t> ptw_address;

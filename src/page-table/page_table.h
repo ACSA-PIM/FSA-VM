@@ -21,6 +21,7 @@
 #include "../cache.h"
 #include "../hash.h"
 #include "pw_cache.h"
+#include "tlb/page_table_walker.h"
 #include <iterator>
 #include <map>
 /*#------legacy paging(supports 4KB&&4MB)--------#*/
@@ -186,9 +187,10 @@ class LongModePaging : public BasePaging {
     virtual bool allocate_page_table(Address addr, Address size);
     virtual void remove_root_directory();
     virtual bool remove_page_table(Address addr, Address size);
-
+    
     virtual PagingStyle get_paging_style() { return mode; }
-
+    virtual void setPTW(BasePageTableWalker* _ptw) {ptw = _ptw; pwc = ptw->Getpwc();}
+     
     unsigned get_page_table_num() { return cur_pt_num; }
 
     unsigned get_page_directory_num() { return cur_pd_num; }
@@ -216,15 +218,6 @@ class LongModePaging : public BasePaging {
         vmof << "page table number:" << cur_pt_num << std::endl;
         vmof << "overhead of page table storage:"
              << (double)overhead / (double)(1024 * 1024) << " MB" << std::endl;
-        vmof << "pwl4 access: " << pwl4->access_count << std::endl;
-        vmof << "pwl4 miss: " << pwl4->miss_count << std::endl;
-        vmof << "pwl4 miss rate: " << (double)pwl4->miss_count/(double)pwl4->access_count*100 << "%" << std::endl;
-        vmof << "pwl3 access: " << pwl3->access_count << std::endl;
-        vmof << "pwl3 miss: " << pwl3->miss_count << std::endl;
-        vmof << "pwl3 miss rate: " << (double)pwl3->miss_count/(double)pwl3->access_count*100 << "%" << std::endl;
-        vmof << "pwl2 access: " << pwl2->access_count << std::endl;
-        vmof << "pwl2 miss: " << pwl2->miss_count << std::endl;
-        vmof << "pwl2 miss rate: " << (double)pwl2->miss_count/(double)pwl2->access_count*100 << "%" << std::endl;
     }
     virtual void lock() { futex_lock(&table_lock); }
     virtual void unlock() { futex_unlock(&table_lock); }
@@ -275,9 +268,8 @@ class LongModePaging : public BasePaging {
     uint64_t cur_pdp_num;
     uint64_t cur_pd_num;
     uint64_t cur_pt_num;
-    pw_cache *pwl4;
-    pw_cache *pwl3;
-    pw_cache *pwl2;
+    pwc_group *pwc;
+    BasePageTableWalker* ptw;
     bool pwc_enable;
     lock_t table_lock;
     uint64_t error_migrated_pages;

@@ -970,6 +970,21 @@ static void InitSystem(Config& config) {
                 bool reversed_pgt = config.get<bool>("sys.ptw.rpgt", false);
                 if(reversed_pgt)
                     debug_printf("Reversed page table enabled\n");
+                if(config.exists("sys.pwc")){
+                    zinfo->pwc_accLat = config.get<uint32_t>("sys.pwc.AccLat", 10);
+                    zinfo->pwc_invLat = config.get<uint32_t>("sys.pwc.InvLat", 10);
+                    vector<const char*> pwcGroupNames;
+                    config.subgroups("sys.pwc", pwcGroupNames);
+                    string prefix = "sys.pwc.";
+                    for (const char* grp : pwcGroupNames) {
+                        string group(grp);
+                        unsigned size = config.get<unsigned>("sys.pwc." + group + "." + "size", 0);
+                        unsigned ways = config.get<unsigned>("sys.pwc." + group + "." + "ways", 0);
+                        assert(size % ways == 0);
+                        zinfo->pwc_size.push_back(size);
+                        zinfo->pwc_ways.push_back(ways);
+                        }
+                }
                 if( config.exists("sys.tlbs")){
                     zinfo->pg_walkers = gm_memalign<BasePageTableWalker*>(CACHE_LINE_BYTES, cores);
                     common_pgt = gm_memalign<PageTableWalker<TlbEntry> >(CACHE_LINE_BYTES,cores );
@@ -995,6 +1010,7 @@ static void InitSystem(Config& config) {
                     } else if( reversed_pgt || zinfo->enable_shared_memory ){
                         reversed_paging = gm_memalign<ReversedPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                     }
+                    printf("num of paging: %d", zinfo->numProcs);
                     for( unsigned i=0; i<zinfo->numProcs; i++) {
                         if( !reversed_pgt && !zinfo->enable_shared_memory){
                             if( mode_str == "Legacy")
@@ -1071,6 +1087,8 @@ static void InitSystem(Config& config) {
                             
                             // page table walkers, will be attached to LLC (if exists)
                             zinfo->pg_walkers[j] = new (&common_pgt[j])PageTableWalker<TlbEntry>(ilog2(zinfo->lineSize),pg_table_name.c_str() ,zinfo->paging_mode, zinfo->ptw_enable_timing_mode);
+                            zinfo->pwc_enable = config.get<bool>("sys.ptw.pwc_enable", false);
+                            if(zinfo->pwc_enable) zinfo->pg_walkers[j]->Setpwc(zinfo->pwc_size, zinfo->pwc_ways, zinfo->pwc_accLat, zinfo->pwc_invLat);
                         }
                         assert(tlb_group_names.size() == 2);
                         for( const char* grp : tlb_group_names){
@@ -1160,6 +1178,24 @@ static void InitSystem(Config& config) {
                         }
                     }
                 }
+                // string mode_str = pagingmode_to_string(zinfo->paging_mode);
+                // typedef vector<vector<pw_cache*>> PWCGroup;
+                // if( config.exists("sys.pwc") && mode_str == "LongMode" ) {
+                //     PWCGroup* pwcgp = new PWCGroup;
+                //     PWCGroup& pwcg = *pwcgp;
+                //     pwcg.resize();
+                //     vector<const char*> pwc_group_names;
+                //     config.subgroups("sys.pwc",pwc_group_names);
+                //     string prefix = "sys.pwc.";
+                //     for(const char* pwc : pwc_group_names) {
+                //         string group(pwc);
+                //         uint32_t numlines = config.get<uint32_t>(prefix + group + ".size", 64);
+                //         uint32_t assoc = config.get<uint32_t>(prefix + group + ".assoc", 4);
+                //             uint32_t invlatency = config.get<uint32_t>(prefix + group + ".invlatency", 1);
+                //     uint32_t acclatency = config.get<uint32_t>(prefix + group + ".acclatency", 1);
+                //             for(int i = 0; i < zinfo->numCores; i++) pwc_group[i].push_back(new pw_cache(numlines, assoc, acclatency, invlatency, group));
+                //     }
+                // }
             } else {
                 assert(type == "Null");
                 for (uint32_t j = 0; j < cores; j++) {

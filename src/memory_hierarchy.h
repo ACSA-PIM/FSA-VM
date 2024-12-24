@@ -232,6 +232,7 @@ class BaseTlb: public MemObject{
 /*#-----------base class of paging--------------#*/
 class Page;
 class PageTable;
+class pwc_group;
 class BasePDTEntry;
 class BaseCoreRecorder;
 class BasePaging: public MemObject
@@ -257,6 +258,7 @@ class BasePaging: public MemObject
         virtual void calculate_stats(std::ofstream &vmof){}
 		virtual void calculate_stats(){}
         virtual void setCoreRecorder(BaseCoreRecorder* _cRec) {}
+        virtual void setPTW(BasePageTableWalker* _ptw) {}
         virtual void lock() = 0;
         virtual void unlock() = 0;
 };
@@ -271,13 +273,15 @@ class BasePageTableWalker: public BaseCache
 		virtual void convert_to_dirty( Address block_id){}
         virtual void calculate_stats(std::ofstream &vmof){}
 		virtual void calculate_stats(){}
-        uint64_t address_stats(std::ofstream &addrof){}
+        virtual void address_stats(std::ofstream &addrof){}
         virtual void setParents(uint32_t _childId, const g_vector<MemObject*>& parents, Network* network) {};
         virtual void setChildren(const g_vector<BaseCache*>& children, Network* network){ assert(0);/*should never executed*/};
         virtual uint64_t invalidate(const InvReq& req){assert(0);/* should never executed */};
         virtual void setCoreRecorder(BaseCoreRecorder* _cRec) {}
         virtual uint64_t tlb_shootdown(Address vpn){return 0;}
         virtual uint64_t tlb_update(Address vpn, Address ppn){return 0;}
+        virtual void Setpwc(g_vector<unsigned>& size, g_vector<unsigned>& assoc, uint32_t accLat, uint32_t invLat) {};
+        virtual pwc_group* Getpwc(){ return NULL;}
 };
 
 class PIMBasePageTableWalker;
