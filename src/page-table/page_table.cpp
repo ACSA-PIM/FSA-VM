@@ -971,9 +971,7 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
     unsigned pml4_id, pdp_id, pd_id, pt_id;
     Address pgAddr;
     uint64_t lineAddr;
-    bool pwc_hit = false;
     get_domains(addr, pml4_id, pdp_id, pd_id, pt_id, mode);
-    // access translation cache
     pgAddr = getPGTAddr(pml4->get_page_no(), pml4_id);
     lineAddr = pgAddr >> lineBits;
     MESIState dummyState = MESIState::I;
@@ -982,6 +980,7 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
                         dummyState,  req.srcId,  req.flags};
     pwc_req.threadId = req.threadId;
     pwc_req.isPIMInst = req.isPIMInst;
+    // access translation cache
     if(zinfo->pwc_enable) {
         // std::cout<<"into PWC group access"<<std::endl;
         req.cycle += pwc->access(pwc_req, "pwl4");
@@ -990,7 +989,7 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
             pwc->miss_count["pwl4"]++;
         }
     }
-    pgt_addrs.push_back(pgAddr);
+    else pgt_addrs.push_back(pgAddr);
     // point to page table pointer table
     PageTable *pdp_ptr = get_next_level_address<PageTable>(pml4, pml4_id);
     BasePDTEntry *pdt_ptr = NULL;
@@ -1018,13 +1017,12 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
         pwc_req.pwc_hit = false;
         if(zinfo->pwc_enable) {
             req.cycle += pwc->access(pwc_req, "pwl3");
-            pwc->access_count["pwl3"]++;
             if(!pwc_req.pwc_hit) {
                 pgt_addrs.push_back(pgAddr);
                 pwc->miss_count["pwl3"]++;
             }
         }
-        pgt_addrs.push_back(pgAddr);
+        else pgt_addrs.push_back(pgAddr);
         // point to page
         pdt_ptr = (*(PageTable *)ptr)[pd_id];
         ptr = get_next_level_address<void>((PageTable *)ptr, pd_id);
@@ -1043,13 +1041,12 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
         pwc_req.pwc_hit = false;
         if(zinfo->pwc_enable) {
             req.cycle += pwc->access(pwc_req, "pwl3");
-            pwc->access_count["pwl3"]++;
             if(!pwc_req.pwc_hit) {
                 pgt_addrs.push_back(pgAddr);
                 pwc->miss_count["pwl3"]++;
             }
         }
-        pgt_addrs.push_back(pgAddr);
+        else pgt_addrs.push_back(pgAddr);
         ptr = get_next_level_address<void>((PageTable *)ptr, pd_id);
         if (!ptr) {
             req.cycle =
@@ -1062,13 +1059,12 @@ Address LongModePaging::access(MemReq &req, g_vector<MemObject *> &parents,
         pwc_req.pwc_hit = false;
         if(zinfo->pwc_enable) {
             req.cycle += pwc->access(pwc_req, "pwl2");
-            pwc->access_count["pwl2"]++;
             if(!pwc_req.pwc_hit) {
                 pgt_addrs.push_back(pgAddr);
                 pwc->miss_count["pwl2"]++;
             }
         }
-        pgt_addrs.push_back(pgAddr);
+        else pgt_addrs.push_back(pgAddr);
         // point to page
         pdt_ptr = (*(PageTable *)ptr)[pt_id];
         ptr = get_next_level_address<void>((PageTable *)ptr, pt_id);
