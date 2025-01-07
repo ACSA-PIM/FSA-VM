@@ -7,7 +7,7 @@
 *.out
 *.stats
 .vscode
-/tests/benchmarks/workloads/*
+/tests/benchmarks/*
 *.o
 *.a
 out.cfg
