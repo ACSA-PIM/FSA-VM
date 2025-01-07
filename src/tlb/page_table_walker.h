@@ -146,8 +146,8 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
         addrof << "PWC L3 miss time: " << pwc->miss_count["pwl3"] << std::endl;
         addrof << "PWC L2 miss time: " << pwc->miss_count["pwl2"] << std::endl;
         addrof << "PWC L4 miss rate: " << (double)pwc->miss_count["pwl4"]/(double)pwc->access_count["pwl4"]*100 << std::endl;
-        addrof << "PWC L3 miss rate: " << (double)pwc->miss_count["pwl3"]/(double)pwc->access_count["pwl4"]*100 << std::endl;
-        addrof << "PWC L2 miss rate: " << (double)pwc->miss_count["pwl2"]/(double)pwc->access_count["pwl4"]*100 << std::endl;
+        addrof << "PWC L3 miss rate: " << (double)pwc->miss_count["pwl3"]/(double)pwc->access_count["pwl3"]*100 << std::endl;
+        addrof << "PWC L2 miss rate: " << (double)pwc->miss_count["pwl2"]/(double)pwc->access_count["pwl2"]*100 << std::endl;
     }
     Address do_page_fault(MemReq &req, PAGE_FAULT fault_type) {
         // allocate one page from Zone_Normal area
