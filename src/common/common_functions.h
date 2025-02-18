@@ -56,6 +56,16 @@ inline uint64_t mask( int bit_len)
 	return (bit_len==64)?(uint64_t)-1LL:( (1<<bit_len)-1);
 }
 
+
+inline uint64_t get_bits(uint64_t value, unsigned start_bit, unsigned bit_len) {
+    if (start_bit >= 64 || bit_len == 0 || start_bit + bit_len > 64) {
+        std::cerr << "Invalid start_bit or bit_len" << std::endl;
+        return 0;
+    }
+    uint64_t mask = (1ULL << bit_len) - 1;
+    return (value >> start_bit) & mask;
+}
+
 template <class S , class T>
 inline S get_bit_value(T value, unsigned start_bit , unsigned end_bit)
 {
@@ -81,6 +91,12 @@ inline PagingStyle string_to_pagingmode( const char* mode_str)
 		return LongMode_Huge;
 	if( !strcmp(mode_str , "Hash_Normal") )
 		return Hash_Normal;
+	if( !strcmp(mode_str , "Hash_Ideal") )
+		return Hash_Ideal;
+	if( !strcmp(mode_str , "Cuckoo_Normal") )
+		return Cuckoo_Normal;
+	if( !strcmp(mode_str , "Cuckoo_Elastic") )
+		return Cuckoo_Elastic;
 	return Legacy_Normal;	//default return Legacy_Normal
 }
 
@@ -94,6 +110,12 @@ inline std::string pagingmode_to_string( PagingStyle mode)
 		return "LongMode";
 	if( mode==Hash_Normal)
 		return "Hash_Normal";
+	if( mode == Hash_Ideal)
+		return "Hash_Ideal";
+	if( mode == Cuckoo_Normal)
+		return "Cuckoo_Normal";
+	if( mode == Cuckoo_Elastic)
+		return "Cuckoo_Elastic";
 	else
 		return "";
 

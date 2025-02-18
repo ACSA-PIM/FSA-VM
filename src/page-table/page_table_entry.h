@@ -191,6 +191,7 @@ class BasePDTEntry : public GlobAlloc {
     }
     void set_vpn(Address addr) { vpn = addr; }
     Address get_vpn() { return vpn; }
+    Page* get_page() { return (Page*)next_level_ptr; }
     uint32_t get_lrequester() { return last_requester; }
 
   private:
@@ -277,9 +278,14 @@ class PageTable {
         return page->pageNo;
     }
 
+    inline Page* get_page() {
+        return page;
+    }
+
   public:
     g_vector<BasePDTEntry *> entry_array;
     unsigned map_count;
+    unsigned cur_pte_num;
     Page *page; // the Page allocated to this page table
 };
 #endif

@@ -235,6 +235,10 @@ struct GlobSimInfo {
     g_vector<unsigned> pwc_size;
     uint32_t pwc_accLat;
     uint32_t pwc_invLat;
+    unsigned cuckoo_d;
+    unsigned cuckoo_size;
+    unsigned cuckoo_scale;
+    double cuckoo_threshold;
 	BasePageTableWalker** pg_walkers;
     /*####tlb related #####*/
     bool tlb_enabled;

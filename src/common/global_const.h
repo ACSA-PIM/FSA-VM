@@ -84,7 +84,10 @@ enum PagingStyle
 	LongMode_Normal,	//4KB page
 	LongMode_Middle,	//2MB page
 	LongMode_Huge,		//1GB page
-	Hash_Normal
+	Hash_Normal,
+	Hash_Ideal,
+	Cuckoo_Normal,
+	Cuckoo_Elastic
 };
 
 enum ZoneType
