@@ -8,16 +8,16 @@
  * Copyright (C) 2024 Buxin Tu (tubuxin0621@gmail.com)
  */
 
-#include "page-table/hash_page_table.h"
+#include "page-table/baseline_hash/hash_page_table.h"
 #include "common/common_functions.h"
 #include "core.h"
 #include "galloc.h"
 #include "memory_hierarchy.h"
 #include "mmu/memory_management.h"
 #include "pad.h"
-#include "page_table_entry.h"
+#include "page-table/page_table_entry.h"
 #include "timing_event.h"
-#include "page-table/city.h"
+#include "page-table/baseline_hash/city.h"
 #include "zsim.h"
 #include <iterator>
 #include <list>
@@ -189,6 +189,7 @@ Address HashPaging::access(MemReq &req, g_vector<MemObject *> &parents,
     g_vector<uint64_t> pgt_addrs;
     Address addr = req.lineAddr << lineBits;
     Address vpageno = get_bit_value<Address>(addr, 12, 47);
+    std::cout <<"accessing vpn: "<<vpageno<<std::endl;
     uint64_t hash_id = hash_function(vpageno) % table_size;
     pgt_addrs.push_back(getPGTAddr(hptr->get_page_no(), hash_id%512));
     BasePDTEntry *ht_ptr = (*(PageTable *)hptr)[hash_id];
