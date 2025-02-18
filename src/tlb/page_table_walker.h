@@ -138,20 +138,22 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
             addrof << "PTW Virtual Page: " << entry.first << ", Count: "
                    << entry.second << std::endl;
         }
-        addrof << "PTW Virtual Page num: " << period << std::endl;
-        addrof << "PWC L4 access time: " << pwc->access_count["pwl4"] << std::endl;
-        addrof << "PWC L3 access time: " << pwc->access_count["pwl3"] << std::endl;
-        addrof << "PWC L2 access time: " << pwc->access_count["pwl2"] << std::endl;
-        addrof << "PWC L4 miss time: " << pwc->miss_count["pwl4"] << std::endl;
-        addrof << "PWC L3 miss time: " << pwc->miss_count["pwl3"] << std::endl;
-        addrof << "PWC L2 miss time: " << pwc->miss_count["pwl2"] << std::endl;
-        addrof << "PWC L4 miss rate: " << (double)pwc->miss_count["pwl4"]/(double)pwc->access_count["pwl4"]*100 << std::endl;
-        addrof << "PWC L3 miss rate: " << (double)pwc->miss_count["pwl3"]/(double)pwc->access_count["pwl3"]*100 << std::endl;
-        addrof << "PWC L2 miss rate: " << (double)pwc->miss_count["pwl2"]/(double)pwc->access_count["pwl2"]*100 << std::endl;
+        if(zinfo->pwc_enable) {
+            addrof << "PTW Virtual Page num: " << period << std::endl;
+            addrof << "PWC L4 access time: " << pwc->access_count["pwl4"] << std::endl;
+            addrof << "PWC L3 access time: " << pwc->access_count["pwl3"] << std::endl;
+            addrof << "PWC L2 access time: " << pwc->access_count["pwl2"] << std::endl;
+            addrof << "PWC L4 miss time: " << pwc->miss_count["pwl4"] << std::endl;
+            addrof << "PWC L3 miss time: " << pwc->miss_count["pwl3"] << std::endl;
+            addrof << "PWC L2 miss time: " << pwc->miss_count["pwl2"] << std::endl;
+            addrof << "PWC L4 miss rate: " << (double)pwc->miss_count["pwl4"]/(double)pwc->access_count["pwl4"]*100 << std::endl;
+            addrof << "PWC L3 miss rate: " << (double)pwc->miss_count["pwl3"]/(double)pwc->access_count["pwl3"]*100 << std::endl;
+            addrof << "PWC L2 miss rate: " << (double)pwc->miss_count["pwl2"]/(double)pwc->access_count["pwl2"]*100 << std::endl;
+        }
     }
     Address do_page_fault(MemReq &req, PAGE_FAULT fault_type) {
         // allocate one page from Zone_Normal area
-        debug_printf("page falut, allocate free page through buddy allocator");
+        debug_printf("page fault, allocate free page through buddy allocator");
         Page *page = NULL;
         Address vAddr = req.lineAddr << line_shift;
         if (zinfo->buddy_allocator) {
@@ -168,7 +170,7 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
                             req.srcId, vAddr, page,
                             (req.type == PUTS) ? true : false);
                         if (overhead == -1) {
-                            panic("Map page table filed!");
+                            panic("Map page table failed!");
                         }
                         if (enable_timing_mode) {
                             dram_map_overhead += overhead;
@@ -180,7 +182,7 @@ template <class T> class PageTableWalker : public BasePageTableWalker {
                         req.srcId, vAddr, page,
                         (req.type == PUTS) ? true : false);
                     if (overhead == -1) {
-                        panic("Map page table filed!");
+                        panic("Map page table failed!");
                     }
                     if (enable_timing_mode) {
                         dram_map_overhead += overhead;

@@ -81,7 +81,8 @@
 #include "tlb/tlb_entry.h"
 #include "page-table/comm_page_table_op.h"
 #include "page-table/page_table.h"
-#include "page-table/hash_page_table.h"
+#include "page-table/baseline_hash/hash_page_table.h"
+#include "page-table/cuckoo_hash/cuckoo_table.h"
 #include "page-table/reversed_page_table.h"
 #include "memory_hierarchy.h"
 #include "cd_arrays.h"
@@ -627,6 +628,18 @@ static void InitSystem(Config& config) {
                 zinfo->page_size = 4 * power(2, 10);//4KB
                 zinfo->page_shift = 12;
                 break;
+            case Hash_Ideal:
+                zinfo->page_size = 4 * power(2, 10);//4KB
+                zinfo->page_shift = 12;
+                break;
+            case Cuckoo_Normal: // All default 4KB page
+                zinfo->page_size = 4 * power(2, 10);//4KB
+                zinfo->page_shift = 12;
+                break;
+            case Cuckoo_Elastic:
+                zinfo->page_size = 4 * power(2, 10);//4KB
+                zinfo->page_shift = 12;
+                break;
             default:
                 assert(0);
         }
@@ -995,6 +1008,7 @@ static void InitSystem(Config& config) {
                         LongModePaging* longmode_paging;
                         ReversedPaging* reversed_paging;
                         HashPaging* hash_paging;
+                        CuckooPaging* cuckoo_paging;
                     }; 
                     zinfo->paging_array = gm_memalign<BasePaging*>(CACHE_LINE_BYTES , zinfo->numProcs);
                     string mode_str = pagingmode_to_string(zinfo->paging_mode);
@@ -1007,10 +1021,14 @@ static void InitSystem(Config& config) {
                             longmode_paging = gm_memalign<LongModePaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                         if( mode_str == "Hash_Normal")
                             hash_paging = gm_memalign<HashPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
+                        if( mode_str == "Cuckoo_Normal")
+                            cuckoo_paging = gm_memalign<CuckooPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
+                        if( mode_str == "Cuckoo_elastic")
+                            cuckoo_paging = gm_memalign<CuckooPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                     } else if( reversed_pgt || zinfo->enable_shared_memory ){
                         reversed_paging = gm_memalign<ReversedPaging>(CACHE_LINE_BYTES, zinfo->numProcs);
                     }
-                    printf("num of paging: %d", zinfo->numProcs);
+                    printf("num of paging: %d\n", zinfo->numProcs);
                     for( unsigned i=0; i<zinfo->numProcs; i++) {
                         if( !reversed_pgt && !zinfo->enable_shared_memory){
                             if( mode_str == "Legacy")
@@ -1024,6 +1042,19 @@ static void InitSystem(Config& config) {
                             if( mode_str == "Hash_Normal") {
                                 info("Create Hash page table");
                                 zinfo->paging_array[i] = new (&hash_paging[i])HashPaging(zinfo->paging_mode);
+                            }
+                            if( mode_str == "Cuckoo_Normal") {
+                                cout<<"Cuckoo_Normal"<<endl;
+                                info("Create Cuckoo page table");
+                                if(config.exists("sys.cuckoo")) {
+                                    zinfo->cuckoo_size = config.get<unsigned>("sys.cuckoo.size", 2048);
+                                    zinfo->cuckoo_d = config.get<unsigned>("sys.cuckoo.d", 2);
+                                    zinfo->cuckoo_scale = config.get<unsigned>("sys.cuckoo.scale", 4);
+                                    zinfo->cuckoo_threshold = config.get<double>("sys.cuckoo.threshold", 0.60);
+                                    zinfo->paging_array[i] = new (&cuckoo_paging[i])CuckooPaging(zinfo->paging_mode);
+                                }
+                                else panic("Cuckoo page table is not configured");
+                                std::cout<<"here"<<std::endl;
                             }
                         }else if( reversed_pgt || zinfo->enable_shared_memory){
                             info("Create reversed paging");
