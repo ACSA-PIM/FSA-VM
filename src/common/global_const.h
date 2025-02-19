@@ -85,7 +85,7 @@ enum PagingStyle
 	LongMode_Middle,	//2MB page
 	LongMode_Huge,		//1GB page
 	Hash_Normal,
-	Hash_Ideal,
+	Hash_Chain,
 	Cuckoo_Normal,
 	Cuckoo_Elastic
 };

@@ -91,8 +91,8 @@ inline PagingStyle string_to_pagingmode( const char* mode_str)
 		return LongMode_Huge;
 	if( !strcmp(mode_str , "Hash_Normal") )
 		return Hash_Normal;
-	if( !strcmp(mode_str , "Hash_Ideal") )
-		return Hash_Ideal;
+	if( !strcmp(mode_str , "Hash_Chain") )
+		return Hash_Chain;
 	if( !strcmp(mode_str , "Cuckoo_Normal") )
 		return Cuckoo_Normal;
 	if( !strcmp(mode_str , "Cuckoo_Elastic") )
@@ -110,8 +110,8 @@ inline std::string pagingmode_to_string( PagingStyle mode)
 		return "LongMode";
 	if( mode==Hash_Normal)
 		return "Hash_Normal";
-	if( mode == Hash_Ideal)
-		return "Hash_Ideal";
+	if( mode == Hash_Chain)
+		return "Hash_Chain";
 	if( mode == Cuckoo_Normal)
 		return "Cuckoo_Normal";
 	if( mode == Cuckoo_Elastic)

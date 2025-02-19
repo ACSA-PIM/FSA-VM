@@ -46,6 +46,7 @@ class CuckooPaging : public BasePaging {
     virtual void lock() { futex_lock(&table_lock); }
     virtual void unlock() { futex_unlock(&table_lock); }
     virtual void rehash(unsigned d);
+    virtual void rehash_gradual(unsigned d);
   protected:
     uint64_t allocate_table_entry(uint64_t hash_id, uint64_t &pt_id, Page *pg_ptr, unsigned d);
     //allocate
@@ -68,7 +69,7 @@ class CuckooPaging : public BasePaging {
   private:
     PagingStyle mode;
     lock_t table_lock;
-    uint64_t scale;
+    double scale;
     uint64_t ways;
     double threshold;
 };

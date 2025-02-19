@@ -60,10 +60,11 @@ class HashPaging : public BasePaging {
     }
     virtual void lock() { futex_lock(&table_lock); }
     virtual void unlock() { futex_unlock(&table_lock); }
-
+    virtual void rehash();
   protected:
   //TUBUXIN: hash table functions can be implemented here, including allocate, remove, and so on.
     uint64_t allocate_table_entry(uint64_t hash_id);
+    uint64_t reallocate_table_entry(uint64_t hash_id);
     //allocate
     // remove
 
@@ -77,12 +78,15 @@ class HashPaging : public BasePaging {
 
   public:
     PageTable *hptr;
-
+    PageTable *new_hptr;
   private:
     PagingStyle mode;
     uint64_t cur_pte_num;
     lock_t table_lock;
     uint64_t table_size;
+    uint64_t rehash_count;
+    double threshold;
+    double scale;
 };
 
 // class PagingFactory

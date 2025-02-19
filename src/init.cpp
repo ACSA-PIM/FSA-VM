@@ -628,7 +628,7 @@ static void InitSystem(Config& config) {
                 zinfo->page_size = 4 * power(2, 10);//4KB
                 zinfo->page_shift = 12;
                 break;
-            case Hash_Ideal:
+            case Hash_Chain:
                 zinfo->page_size = 4 * power(2, 10);//4KB
                 zinfo->page_shift = 12;
                 break;
@@ -1041,6 +1041,9 @@ static void InitSystem(Config& config) {
                             }
                             if( mode_str == "Hash_Normal") {
                                 info("Create Hash page table");
+                                zinfo->hdc_size = config.get<unsigned>("sys.hdc.size", 2048);
+                                zinfo->hdc_scale = config.get<double>("sys.hdc.scale", 2);
+                                zinfo->hdc_threshold = config.get<double>("sys.hdc.threshold", 0.60);
                                 zinfo->paging_array[i] = new (&hash_paging[i])HashPaging(zinfo->paging_mode);
                             }
                             if( mode_str == "Cuckoo_Normal") {
@@ -1049,7 +1052,7 @@ static void InitSystem(Config& config) {
                                 if(config.exists("sys.cuckoo")) {
                                     zinfo->cuckoo_size = config.get<unsigned>("sys.cuckoo.size", 2048);
                                     zinfo->cuckoo_d = config.get<unsigned>("sys.cuckoo.d", 2);
-                                    zinfo->cuckoo_scale = config.get<unsigned>("sys.cuckoo.scale", 4);
+                                    zinfo->cuckoo_scale = config.get<double>("sys.cuckoo.scale", 2);
                                     zinfo->cuckoo_threshold = config.get<double>("sys.cuckoo.threshold", 0.60);
                                     zinfo->paging_array[i] = new (&cuckoo_paging[i])CuckooPaging(zinfo->paging_mode);
                                 }

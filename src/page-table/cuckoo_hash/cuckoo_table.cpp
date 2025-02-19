@@ -140,7 +140,7 @@ int CuckooPaging::map_page_table(Address addr, Page *pg_ptr,
     // std::cout<<"pt_id: "<<pt_id<<" "<<"size: "<<hptr[0]->map_count<<std::endl;
     assert(is_valid(hptr[0], pt_id) && d != -1);
     mapped_entry = (*hptr[0])[pt_id];
-    std::cout << (double)(cur_pte_num[d])/(double)(hptr[d]->map_count) << std::endl;    
+    // std::cout << (double)(cur_pte_num[d])/(double)(hptr[d]->map_count) << std::endl;    
     if((double)(cur_pte_num[d])/(double)(hptr[d]->map_count) > zinfo->cuckoo_threshold) {
         // std::cout<< "rehashing" << std::endl;
         rehash(d);
@@ -247,7 +247,7 @@ Address CuckooPaging::access(MemReq &req, g_vector<MemObject *> &parents,
         if(ht_ptr->is_page_assigned() && ht_ptr->get_vpn() == vpageno) {
             // std::cout<<"VPN: " << vpageno << " in " << i << "-ary table." <<std::endl;
             // update page table flags
-            std::cout<<"VPN: " << vpageno << " in " << i << "-ary table." <<std::endl;
+            // std::cout<<"VPN: " << vpageno << " in " << i << "-ary table." <<std::endl;
             ht_ptr->set_lrequester(req.srcId, req.triggerPageShared);
             ht_ptr->set_accessed();
             if (req.type == PUTS) {
@@ -262,7 +262,7 @@ Address CuckooPaging::access(MemReq &req, g_vector<MemObject *> &parents,
         }
     }
     if (!ptr) { //PTE accessed don't get the page ptr
-        std::cout << "No found the PPN, Now handle the access to d-ary cuckoo tables:" << std::endl;
+        // std::cout << "No found the PPN, Now handle the access to d-ary cuckoo tables:" << std::endl;
         req.cycle =
             loadPageTables(req, pgt_addrs, parents, parentRTTs, sendPTW);
         return PAGE_FAULT_SIG;
@@ -305,7 +305,7 @@ bool CuckooPaging::remove_page_table(Address addr, Address size) {
 void CuckooPaging::rehash(unsigned d) {
     rehash_count[d]++;
     PageTable *new_table = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
-    new_table = new PageTable(hptr[d]->map_count * scale, hptr[d]->get_page());
+    new_table = new PageTable((uint64_t)(hptr[d]->map_count * scale), hptr[d]->get_page());
     _rdrand64_step((unsigned long long *)&keys[d]);
     for(int i = 0; i < hptr[d]->map_count; i++) {
         BasePDTEntry *entry = (*hptr[d])[i];
@@ -335,7 +335,7 @@ void CuckooPaging::rehash(unsigned d) {
 void CuckooPaging::rehash_gradual(unsigned d) {
     rehash_count[d]++;
     PageTable *new_table = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
-    new_table = new PageTable(hptr[d]->map_count * scale, hptr[d]->get_page());
+    new_table = new PageTable((uint64_t)(hptr[d]->map_count * scale), hptr[d]->get_page());
     _rdrand64_step((unsigned long long *)&keys[d]);
     for(int i = 0; i < hptr[d]->map_count; i++) {
         BasePDTEntry *entry = (*hptr[d])[i];

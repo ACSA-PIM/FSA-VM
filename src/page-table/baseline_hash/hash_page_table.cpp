@@ -32,16 +32,18 @@ HashPaging::HashPaging(PagingStyle select)
     if (zinfo->buddy_allocator) {
         Page *page = zinfo->buddy_allocator->allocate_pages(0);
         if (page) {
-            hptr = new (table) PageTable(67108864, page);//page table size is DDDD PTEs
-            table_size = 67108864;
+            table_size = zinfo->hdc_size;
+            hptr = new (table) PageTable(table_size, page);//page table size is DDDD PTEs
         } else {
             panic("Cannot allocate a page for page directory!");
         }
     } else {
-        hptr = new (table) PageTable(67108864);
+        hptr = new (table) PageTable(zinfo->hdc_size);
     }
     futex_init(&table_lock);
     cur_pte_num = 0;
+    threshold = zinfo->hdc_threshold;
+    scale = zinfo->hdc_scale;
 }
 
 HashPaging::~HashPaging() { remove_root_directory(); }
@@ -58,16 +60,27 @@ uint64_t HashPaging::hash_function(Address address) {
     return result;
 }
 
-//find idle entry in hash table
+//find idle entry in hash table, using open addressing
 uint64_t HashPaging::allocate_table_entry(uint64_t hash_id) {
-    uint64_t i = hash_id;
+    uint64_t i = 0;
     while(i < table_size){
-        BasePDTEntry *entry = (*hptr)[i];
-        if(!entry->is_present()) return i;
+        BasePDTEntry *entry = (*hptr)[hash_id];
+        if(!entry->is_present()) return hash_id;
         hash_id=(hash_id+1)%table_size;
         i++;
     }
-    return -1;// hash table is full.
+    return -1;// hash table is full. no idle entry left.
+}
+
+uint64_t HashPaging::reallocate_table_entry(uint64_t hash_id) {
+    uint64_t i = 0;
+    while(i < new_hptr->map_count){
+        BasePDTEntry *entry = (*new_hptr)[hash_id];
+        if(!entry->is_present()) return hash_id;
+        hash_id=(hash_id+1)%new_hptr->map_count;
+        i++;
+    }
+    return -1;// hash table is full. no idle entry left.
 }
 
 int HashPaging::map_page_table(Address addr, Page *pg_ptr) {
@@ -84,19 +97,19 @@ int HashPaging::map_page_table(uint32_t req_id, Address addr, Page *pg_ptr,
         // cout <<"allocated pte num: "<<cur_pte_num<<endl;
         entry->set_lrequester(req_id);
         entry->set_accessed();
-        entry->set_vpn(get_bit_value<Address>(addr, 12, 47));
+        entry->set_vpn(get_bits(addr, 12, 47));
         if (is_write)
             entry->set_dirty();
     }
     return latency;
 }
-
+           
 int HashPaging::map_page_table(Address addr, Page *pg_ptr,
                                    BasePDTEntry *&mapped_entry) {
     mapped_entry = NULL;
     int latency = 0;
     // std::cout<<"map:"<<std::hex<<addr<<std::endl;
-    uint64_t vpageno =  get_bit_value<uint64_t>(addr, 12, 47);
+    uint64_t vpageno =  get_bits(addr, 12, 47);
     assert((vpageno != (unsigned)(-1)));
     int alloc_time = 0;
     uint64_t hash_id = hash_function(vpageno)%table_size;
@@ -105,6 +118,12 @@ int HashPaging::map_page_table(Address addr, Page *pg_ptr,
     validate_page(hptr, pt_id, pg_ptr);
     assert(is_valid(hptr, pt_id));
     mapped_entry = (*hptr)[pt_id];
+    // std::cout<<"footprint rate: "<<(double)(cur_pte_num)/(double)(hptr->map_count)<<std::endl;
+    if((double)(cur_pte_num)/(double)(hptr->map_count) > threshold) {
+        std::cout<< "rehashing" << std::endl;
+        rehash();
+        //rehash_gruadual(d);
+    }
     latency = zinfo->mem_access_time * (1 + alloc_time);
     return latency;
 }
@@ -188,12 +207,12 @@ Address HashPaging::access(MemReq &req, g_vector<MemObject *> &parents,
                                BaseCoreRecorder *cRec, bool sendPTW) {
     g_vector<uint64_t> pgt_addrs;
     Address addr = req.lineAddr << lineBits;
-    Address vpageno = get_bit_value<Address>(addr, 12, 47);
-    std::cout <<"accessing vpn: "<<vpageno<<std::endl;
+    Address vpageno = get_bits(addr, 12, 47);
+    // std::cout <<"accessing vpn: "<<vpageno<<std::endl;
     uint64_t hash_id = hash_function(vpageno) % table_size;
     pgt_addrs.push_back(getPGTAddr(hptr->get_page_no(), hash_id%512));
     BasePDTEntry *ht_ptr = (*(PageTable *)hptr)[hash_id];
-    //TUBUXIN: this is open addressing codes, todo: modify the page fault codes to use it.
+    //@BUXIN: this is open addressing codes, from 204 to 214
     void *ptr = NULL;
     while(ht_ptr->is_page_assigned() && hash_id < table_size) {
         if(ht_ptr->get_vpn() == vpageno) {
@@ -223,6 +242,31 @@ Address HashPaging::access(MemReq &req, g_vector<MemObject *> &parents,
     req.pageShared = ht_ptr->is_shared();
     req.cycle = loadPageTables(req, pgt_addrs, parents, parentRTTs, sendPTW);
     return ((Page *)ptr)->pageNo;
+}
+
+void HashPaging::rehash() {
+    rehash_count++;
+    PageTable *new_table = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
+    new_hptr = new (new_table) PageTable((uint64_t)(hptr->map_count * scale), hptr->get_page());
+    for(int i = 0; i < hptr->map_count; i++) {
+        BasePDTEntry *entry = (*hptr)[i];
+        if(entry->is_present()) {
+            uint64_t vpageno = entry->get_vpn();
+            // std::cout<<"vpn: "<<vpageno<<std::endl;
+            Page *pg_ptr = entry->get_page();
+            uint64_t hash_id = hash_function(vpageno)%new_hptr->map_count;
+            hash_id = reallocate_table_entry(hash_id);//@buxin: get the idle entry in new hash table
+            BasePDTEntry *new_entry = (*new_hptr)[hash_id];
+            new_entry->set_vpn(vpageno);
+            vpageno = new_entry->get_vpn();
+            validate_page(new_hptr, hash_id, pg_ptr);
+            // std::cout<<"vpn: "<<vpageno<<std::endl;
+            assert(is_valid(new_hptr, hash_id));
+        }
+    }
+    table_size = new_hptr->map_count;
+    hptr = new_hptr;
+    new_hptr = NULL;
 }
 
 // allocate
