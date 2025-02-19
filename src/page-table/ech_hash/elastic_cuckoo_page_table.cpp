@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "elastic_cuckoo_table.h"
+#include "elastic_cuckoo_page_table.h"
 //#define DEBUG 1
 
 #define HASH_SIZE 8

@@ -82,7 +82,7 @@
 #include "page-table/comm_page_table_op.h"
 #include "page-table/page_table.h"
 #include "page-table/baseline_hash/hash_page_table.h"
-#include "page-table/cuckoo_hash/cuckoo_table.h"
+#include "page-table/cuckoo_hash/cuckoo_page_table.h"
 #include "page-table/reversed_page_table.h"
 #include "memory_hierarchy.h"
 #include "cd_arrays.h"
