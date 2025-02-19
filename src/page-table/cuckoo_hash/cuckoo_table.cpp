@@ -81,10 +81,10 @@ uint64_t CuckooPaging::allocate_table_entry(uint64_t vpageno, uint64_t &pt_id, P
     int walk_time = 0;
     while(d < ways) {
         uint64_t hash_id = hash_function(vpageno, d)%hptr[d]->map_count;
-        std::cout<<"Virtual page id: "<<vpageno<<" hash_id: "<<hash_id<<std::endl;
+        // std::cout<<"Virtual page id: "<<vpageno<<" hash_id: "<<hash_id<<std::endl;
         BasePDTEntry *entry = (*hptr[d])[hash_id];
-        std::cout<<"virtual page id in the slot: "<<entry->get_vpn()<<std::endl;
-        std::cout<<"the entry is present: "<<entry->is_present()<<std::endl;
+        // std::cout<<"virtual page id in the slot: "<<entry->get_vpn()<<std::endl;
+        // std::cout<<"the entry is present: "<<entry->is_present()<<std::endl;
         if(!entry->is_present()) {
             validate_page(hptr[d], hash_id, pg_ptr);
             entry->set_vpn(vpageno);
@@ -106,7 +106,7 @@ uint64_t CuckooPaging::allocate_table_entry(uint64_t vpageno, uint64_t &pt_id, P
             return walk_time;
         }
     }
-    std::cout<<"out of the table"<<std::endl;
+    std::cout<<"out of table"<<std::endl;
     return -1;
 }
 
@@ -137,12 +137,12 @@ int CuckooPaging::map_page_table(Address addr, Page *pg_ptr,
     assert((vpageno != -1));
     uint64_t pt_id = -1;
     int d = allocate_table_entry(vpageno, pt_id, pg_ptr, 0);
-    std::cout<<"pt_id: "<<pt_id<<" "<<"size: "<<hptr[0]->map_count<<std::endl;
+    // std::cout<<"pt_id: "<<pt_id<<" "<<"size: "<<hptr[0]->map_count<<std::endl;
     assert(is_valid(hptr[0], pt_id) && d != -1);
     mapped_entry = (*hptr[0])[pt_id];
     std::cout << (double)(cur_pte_num[d])/(double)(hptr[d]->map_count) << std::endl;    
     if((double)(cur_pte_num[d])/(double)(hptr[d]->map_count) > zinfo->cuckoo_threshold) {
-        std::cout<< "rehashing" << std::endl;
+        // std::cout<< "rehashing" << std::endl;
         rehash(d);
         //rehash_gruadual(d);
     }
@@ -311,27 +311,56 @@ void CuckooPaging::rehash(unsigned d) {
         BasePDTEntry *entry = (*hptr[d])[i];
         if(entry->is_present()) {
             uint64_t vpageno = entry->get_vpn();
-            std::cout<<"vpn: "<<vpageno<<std::endl;
+            // std::cout<<"vpn: "<<vpageno<<std::endl;
             Page *pg_ptr = entry->get_page();
             uint64_t hash_id = hash_function(vpageno, d)%new_table->map_count;
             validate_page(new_table, hash_id, pg_ptr);
             BasePDTEntry *new_entry = (*new_table)[hash_id];
             new_entry->set_vpn(vpageno);
             vpageno = new_entry->get_vpn();
-            std::cout<<"vpn: "<<vpageno<<std::endl;
+            // std::cout<<"vpn: "<<vpageno<<std::endl;
             assert(is_valid(new_table, hash_id));
         }
     }
-    std::cout<<"rehashing finished"<<std::endl;
-    std::cout<<"delete old table"<<std::endl;
+    // std::cout<<"rehashing finished"<<std::endl;
+    // std::cout<<"delete old table"<<std::endl;
     PageTable *old_table = hptr[d];
 
     // delete old_table;
-    std::cout<<"succeed deletion"<<std::endl;
+    // std::cout<<"succeed deletion"<<std::endl;
     hptr[d] = new_table;
-    std::cout<<"succeed replacement"<<std::endl;
+    // std::cout<<"succeed replacement"<<std::endl;
 }
 
+void CuckooPaging::rehash_gradual(unsigned d) {
+    rehash_count[d]++;
+    PageTable *new_table = gm_memalign<PageTable>(CACHE_LINE_BYTES, 1);
+    new_table = new PageTable(hptr[d]->map_count * scale, hptr[d]->get_page());
+    _rdrand64_step((unsigned long long *)&keys[d]);
+    for(int i = 0; i < hptr[d]->map_count; i++) {
+        BasePDTEntry *entry = (*hptr[d])[i];
+        if(entry->is_present()) {
+            uint64_t vpageno = entry->get_vpn();
+            // std::cout<<"vpn: "<<vpageno<<std::endl;
+            Page *pg_ptr = entry->get_page();
+            uint64_t hash_id = hash_function(vpageno, d)%new_table->map_count;
+            validate_page(new_table, hash_id, pg_ptr);
+            BasePDTEntry *new_entry = (*new_table)[hash_id];
+            new_entry->set_vpn(vpageno);
+            vpageno = new_entry->get_vpn();
+            // std::cout<<"vpn: "<<vpageno<<std::endl;
+            assert(is_valid(new_table, hash_id));
+        }
+    }
+    // std::cout<<"rehashing finished"<<std::endl;
+    // std::cout<<"delete old table"<<std::endl;
+    PageTable *old_table = hptr[d];
+
+    // delete old_table;
+    // std::cout<<"succeed deletion"<<std::endl;
+    hptr[d] = new_table;
+    // std::cout<<"succeed replacement"<<std::endl;
+}
 // void CuckooPaging::rehash_gradual() {
 //     //need to implement
 // }
