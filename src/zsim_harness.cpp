@@ -347,7 +347,7 @@ int main(int argc, char *argv[]) {
 
     std::string now = getTime();
     InitLog("[H] ", nullptr /*log to stdout/err*/);
-    info("Starting MultiPIM %s, built %s (rev %s)", now.c_str(), ZSIM_BUILDDATE, ZSIM_BUILDVERSION);
+    info("Starting FSA-VM %s, built %s (rev %s)", now.c_str(), ZSIM_BUILDDATE, ZSIM_BUILDVERSION);
     info("Harness PID %d", getpid());
     startTime = time(nullptr);
 

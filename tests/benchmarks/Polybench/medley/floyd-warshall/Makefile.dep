@@ -1,3 +1,0 @@
-floyd-warshall.o: floyd-warshall.c ../../utilities/polybench.h \
- floyd-warshall.h
-polybench.o: ../../utilities/polybench.c
