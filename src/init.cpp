@@ -1074,11 +1074,13 @@ static void InitSystem(Config& config) {
                 union {
                     CommonTlb<TlbEntry> * common_tlb;
                     ClusterTlb<TlbEntry> * cluster_tlb;
+                    CommonTlb<TlbEntry> * potm_tlb;
                 };
                 //string tlb_type = config.get<const char*>("sys.tlbs.type" , "CommonTlb");
                 debug_printf("tlb type: "+ tlb_type);
-                if(zinfo->tlb_type == COMMONTLB) common_tlb = gm_memalign<CommonTlb<TlbEntry> >(CACHE_LINE_BYTES, 2*cores);
-                if(zinfo->tlb_type == CLUSTERTLB) cluster_tlb = gm_memalign<ClusterTlb<TlbEntry> >(CACHE_LINE_BYTES, 2*cores);
+                if(zinfo->tlb_type == COMMONTLB) common_tlb = gm_memalign<CommonTlb<TlbEntry> >(CACHE_LINE_BYTES, 3*cores);
+                if(zinfo->tlb_type == CLUSTERTLB) cluster_tlb = gm_memalign<ClusterTlb<TlbEntry> >(CACHE_LINE_BYTES, 3*cores);
+                // if(zinfo->potm_enabled == true) potm_tlb = gm_memalign<POTM_TLB<TlbEntry> >(CACHE_LINE_BYTES, cores);
                 int tlb_id = 0;
 
                 CacheGroup& parentLLCCaches = *cMap[llc];
@@ -1144,12 +1146,13 @@ static void InitSystem(Config& config) {
                             stringstream ss;
                             ss << name << coreIdx;
                             g_string tlb_name(ss.str().c_str());
-                            printf("name is %s\n", name.c_str());
-                            printf("core id is %d\n", coreIdx);
-                            printf("tlb_name is %s\n", tlb_name.c_str());
+                            // printf("name is %s\n", name.c_str());
+                            // printf("core id is %d\n", coreIdx);
+                            // printf("tlb_name is %s\n", tlb_name.c_str());
                             BaseTlb* tlb = NULL;
                             if(zinfo->tlb_type == COMMONTLB) tlb = new (&common_tlb[tlb_id]) CommonTlb<TlbEntry>( tlb_name.c_str(), zinfo->tlb_enable_timing_mode, tlb_size , tlb_hit_lat , tlb_res_lat, ilog2(zinfo->lineSize), zinfo->page_shift,stringToPolicy(evict_policy_str));
                             tlb_id++;
+                            std::cout <<" tlb id: "<<tlb_id<<" tlb name: "<<tlb_name.c_str()<<std::endl;
                             /***----connect page table walker with TLB----***/
                             assert(zinfo->pg_walkers[j]);
                             tlb->set_parent(zinfo->pg_walkers[j]);
@@ -1172,11 +1175,13 @@ static void InitSystem(Config& config) {
                                 l2_tlb->setLevel(2);
                                 l2_tlb->setFlags(MemReq::PTW);
                                 l2_tlb->setSourceId(coreIdx);
+                                itlb->set_next_level_tlb(l2_tlb);
+                                dtlb->set_next_level_tlb(l2_tlb);
                             }
                         }
                         assert(itlb);
                         assert(dtlb);
-                        // assert(l2_tlb);
+                        assert(l2_tlb);
                     }
 
                     //Build the core

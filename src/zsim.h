@@ -245,6 +245,7 @@ struct GlobSimInfo {
 	BasePageTableWalker** pg_walkers;
     /*####tlb related #####*/
     bool tlb_enabled;
+    bool potm_enabled;
     bool tlb_enable_timing_mode;
     bool ptw_enable_timing_mode;
 	int tlb_type;

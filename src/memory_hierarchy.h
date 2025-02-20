@@ -223,6 +223,8 @@ class BaseTlb: public MemObject{
         virtual void setSourceId(uint32_t id){};
         virtual void setFlags(uint32_t flags){};
         virtual void setLevel(int level){};
+        virtual void set_next_level_tlb(BaseTlb* tlb){};
+        virtual BaseTlb* get_next_level_tlb(){};
         virtual uint32_t shootdown(Address vpn) {return 0;};
         virtual uint32_t update_entry(Address vpn, Address ppn) {return 0;};
         virtual uint32_t update_ppn(Address ppn, Address new_ppn) {return 0;};

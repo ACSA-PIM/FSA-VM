@@ -51,6 +51,7 @@ template <class T> class CommonTlb : public BaseTlb {
     }
     /*-------------drive simulation related---------*/
     uint64_t access(MemReq &req) {
+        // debug_printf("now comes to %d level tlb access\n", tlb_level);
         tlb_access_time++;
         Address virt_addr = req.lineAddr << line_shift;
         Address offset = virt_addr & (page_size - 1);
@@ -62,10 +63,15 @@ template <class T> class CommonTlb : public BaseTlb {
         if (!entry) {
             debug_printf("tlb miss: vaddr:%llx , cycle: %d ", virt_addr,
                          req.cycle);
-            req.srcId = srcId;
-            req.flags = reqFlags;
-            // page table walker
-            ppn = page_table_walker->access(req);
+            if(tlb_level == 1) {
+                debug_printf("miss incurs in l1 tlb, now access l2 tlb\n");
+                ppn = next_level_tlb->access(req);
+            } else if(tlb_level == 2) {
+                req.srcId = srcId;
+                req.flags = reqFlags;
+                // debug_printf("miss incurs in l2 tlb, now start PTW\n");
+                ppn = page_table_walker->access(req);
+            }
             // update TLB
             T new_entry(vpn, ppn);
             insert_num++;
@@ -90,7 +96,9 @@ template <class T> class CommonTlb : public BaseTlb {
         if (enable_timing_mode)
             req.cycle += response_latency;
         Address plineaddr = ((ppn << page_shift) | offset) >> line_shift;
-        return plineaddr;
+        debug_printf("tlb access finish in l%d tlb, ppn: %llx, plineaddr: %llx\n", tlb_level, ppn, plineaddr);
+        if(tlb_level == 1) return plineaddr;
+        else if(tlb_level == 2) return ppn;
     }
 
     uint32_t shootdown(Address vpn) {
@@ -157,7 +165,11 @@ template <class T> class CommonTlb : public BaseTlb {
     void set_parent(BasePageTableWalker *pg_table_walker) {
         page_table_walker = pg_table_walker;
     }
+    void set_next_level_tlb(BaseTlb *tlb) { next_level_tlb = tlb;}
+    BaseTlb *get_next_level_tlb() { return next_level_tlb; }
+    
     uint64_t get_access_time() { return tlb_access_time; }
+    int get_level() { return tlb_level; }
     BasePageTableWalker *get_page_table_walker() { return page_table_walker; }
 
     /*-------------TLB operation related------------*/
@@ -198,23 +210,33 @@ template <class T> class CommonTlb : public BaseTlb {
     T *insert(Address vpage_no, T &entry) {
         futex_lock(&tlb_lock);
         // whether entry is already exists
-        debug_printf("insert tlb of vpage no %llx", vpage_no);
+        debug_printf("insert tlb of vpage no %llx in %s", vpage_no, tlb_name_.c_str());
         assert(!tlb_trie.count(vpage_no));
         // no free TLB entry
+        debug_printf("here1");
         if (free_entry_list.empty()) {
             tlb_evict_time++;
             evict(); // default is LRU
         }
+        debug_printf("here2");
         if (free_entry_list.empty() == false) {
+            debug_printf("here2.1");
             T *new_entry = free_entry_list.front();
+            debug_printf("here2.2");
             free_entry_list.pop_front();
+            debug_printf("here2.3");
             *new_entry = entry;
             new_entry->set_valid();
+            debug_printf("here2.4");
             new_entry->lru_seq = ++lru_seq;
+            debug_printf("here2.5");
             tlb_trie[vpage_no] = new_entry;
+            debug_printf("here2.6");
             tlb_trie_pa[new_entry->p_page_no] = new_entry;
+            debug_printf("here2.7");
             // std::cout<<"insert "<<new_entry->p_page_no<<" to pa"<<std::endl;
             futex_unlock(&tlb_lock);
+            debug_printf("here3");
             return new_entry;
         }
         futex_unlock(&tlb_lock);
@@ -359,6 +381,7 @@ template <class T> class CommonTlb : public BaseTlb {
     int tlb_level;
     // page table walker
     BasePageTableWalker *page_table_walker;
+    BaseTlb *next_level_tlb;
     // eviction policy
     EVICTSTYLE evict_policy;
     lock_t tlb_lock;

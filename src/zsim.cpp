@@ -1324,6 +1324,8 @@ VOID SimEnd() {
                     addrof << "dtlb" << i << ":" << std::endl;
 					total_access_time += i_core->getDataTlb()->calculate_stats(vmof);
                     i_core->getDataTlb()->address_stats(addrof);
+                    BaseTlb *l2_tlb = i_core->getDataTlb()->get_next_level_tlb();
+                    if( l2_tlb ) total_access_time += l2_tlb->calculate_stats(vmof);
 				}
 			}
 		}
