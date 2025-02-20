@@ -47,6 +47,7 @@ const char* const c_zone_normal="mem.zone.zone_normal";
 const char* const c_zone_highmem="mem.zone.zone_highmem";
 
 const int COMMONTLB=0;
+const int CLUSTERTLB=1;
 struct Pair
 {
 	Pair( unsigned one , unsigned two) : first(one),second(two)

@@ -77,6 +77,7 @@
 #include "common/common_functions.h"
 #include "common/global_const.h"
 #include "tlb/common_tlb.h"
+#include "tlb/cluster_tlb.h"
 #include "tlb/page_table_walker.h"
 #include "tlb/tlb_entry.h"
 #include "page-table/comm_page_table_op.h"
@@ -972,8 +973,9 @@ static void InitSystem(Config& config) {
                 if (!assignedCaches.count(dcache)) panic("%s: Invalid dcache parameter %s", group, dcache.c_str());
 
                 string tlb_type = config.get<const char*>("sys.tlbs.type" , "CommonTlb");
-                assert(tlb_type == "CommonTlb");
-                zinfo->tlb_type = COMMONTLB;
+                // assert(tlb_type == "CommonTlb");
+                if(tlb_type == "CommonTlb") zinfo->tlb_type = COMMONTLB;
+                if(tlb_type == "ClusterTlb") zinfo->tlb_type = CLUSTERTLB;
                 debug_printf("tlb type is:%s", tlb_type.c_str());
                 union {
                     PageTableWalker<TlbEntry>* common_pgt;
@@ -1071,10 +1073,12 @@ static void InitSystem(Config& config) {
 
                 union {
                     CommonTlb<TlbEntry> * common_tlb;
+                    ClusterTlb<TlbEntry> * cluster_tlb;
                 };
                 //string tlb_type = config.get<const char*>("sys.tlbs.type" , "CommonTlb");
                 debug_printf("tlb type: "+ tlb_type);
-                common_tlb = gm_memalign<CommonTlb<TlbEntry> >(CACHE_LINE_BYTES, 2*cores);
+                if(zinfo->tlb_type == COMMONTLB) common_tlb = gm_memalign<CommonTlb<TlbEntry> >(CACHE_LINE_BYTES, 2*cores);
+                if(zinfo->tlb_type == CLUSTERTLB) cluster_tlb = gm_memalign<ClusterTlb<TlbEntry> >(CACHE_LINE_BYTES, 2*cores);
                 int tlb_id = 0;
 
                 CacheGroup& parentLLCCaches = *cMap[llc];
@@ -1111,6 +1115,7 @@ static void InitSystem(Config& config) {
                     string tlb_prefix="sys.tlbs.";
                     BaseTlb* itlb = NULL;
                     BaseTlb* dtlb = NULL;
+                    BaseTlb* l2_tlb = NULL;
                     string pgt_prefix="sys.ptw.";
                     string pgt_name="sys.ptw";
                     if( config.exists( "sys.tlbs") ){
@@ -1124,7 +1129,7 @@ static void InitSystem(Config& config) {
                             zinfo->pwc_enable = config.get<bool>("sys.ptw.pwc_enable", false);
                             if(zinfo->pwc_enable) zinfo->pg_walkers[j]->Setpwc(zinfo->pwc_size, zinfo->pwc_ways, zinfo->pwc_accLat, zinfo->pwc_invLat);
                         }
-                        assert(tlb_group_names.size() == 2);
+                        // assert(tlb_group_names.size() == 3); //@buxin: L2 tlb is necessary.
                         for( const char* grp : tlb_group_names){
                             string tmp(grp);
                             string name = tlb_prefix+tmp;
@@ -1139,8 +1144,11 @@ static void InitSystem(Config& config) {
                             stringstream ss;
                             ss << name << coreIdx;
                             g_string tlb_name(ss.str().c_str());
+                            printf("name is %s\n", name.c_str());
+                            printf("core id is %d\n", coreIdx);
+                            printf("tlb_name is %s\n", tlb_name.c_str());
                             BaseTlb* tlb = NULL;
-                            tlb = new (&common_tlb[tlb_id]) CommonTlb<TlbEntry>( tlb_name.c_str(), zinfo->tlb_enable_timing_mode, tlb_size , tlb_hit_lat , tlb_res_lat, ilog2(zinfo->lineSize), zinfo->page_shift,stringToPolicy(evict_policy_str));
+                            if(zinfo->tlb_type == COMMONTLB) tlb = new (&common_tlb[tlb_id]) CommonTlb<TlbEntry>( tlb_name.c_str(), zinfo->tlb_enable_timing_mode, tlb_size , tlb_hit_lat , tlb_res_lat, ilog2(zinfo->lineSize), zinfo->page_shift,stringToPolicy(evict_policy_str));
                             tlb_id++;
                             /***----connect page table walker with TLB----***/
                             assert(zinfo->pg_walkers[j]);
@@ -1148,18 +1156,27 @@ static void InitSystem(Config& config) {
                             //std::cout<<"create tlb:"<<tlb->getName()<<std::endl;
                             if(tmp=="itlb"){
                                 itlb = tlb;
+                                itlb->setLevel(1);
                                 itlb->setFlags(MemReq::PTW);
                                 itlb->setSourceId(coreIdx);
                                 ic->setTlb(itlb);
                             }else if(tmp =="dtlb"){
                                 dtlb = tlb;
+                                dtlb->setLevel(1);
                                 dtlb->setFlags(MemReq::PTW);
                                 dtlb->setSourceId(coreIdx);
                                 dc->setTlb(dtlb);
                             }
+                            else if(tmp == "l2_tlb"){
+                                l2_tlb = tlb;
+                                l2_tlb->setLevel(2);
+                                l2_tlb->setFlags(MemReq::PTW);
+                                l2_tlb->setSourceId(coreIdx);
+                            }
                         }
                         assert(itlb);
                         assert(dtlb);
+                        // assert(l2_tlb);
                     }
 
                     //Build the core

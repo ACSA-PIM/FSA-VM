@@ -222,11 +222,11 @@ class BaseTlb: public MemObject{
 		virtual uint64_t get_access_time(){ return 0; }
         virtual void setSourceId(uint32_t id){};
         virtual void setFlags(uint32_t flags){};
+        virtual void setLevel(int level){};
         virtual uint32_t shootdown(Address vpn) {return 0;};
         virtual uint32_t update_entry(Address vpn, Address ppn) {return 0;};
         virtual uint32_t update_ppn(Address ppn, Address new_ppn) {return 0;};
         virtual uint32_t update_tlb_flags(Address ppn, bool shared, bool dirty){return 0;}
-			
 		virtual ~BaseTlb(){};
 };
 /*#-----------base class of paging--------------#*/

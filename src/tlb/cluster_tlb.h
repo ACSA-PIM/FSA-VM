@@ -7,8 +7,8 @@
 /*
  * Copyright (C) 2020 Chao Yu (yuchaocs@gmail.com)
  */
-#ifndef COMMON_TLB_H_
-#define COMMON_TLB_H_
+#ifndef CLUSTER_TLB_H_
+#define CLUSTER_TLB_H_
 #include <set>
 #include <unordered_map>
 
@@ -22,9 +22,9 @@
 #include "locks.h"
 #include "memory_hierarchy.h"
 
-template <class T> class CommonTlb : public BaseTlb {
+template <class T> class ClusterTlb : public BaseTlb {
   public:
-    CommonTlb(const g_string &name, bool enable_timing_mode, unsigned tlb_size,
+    ClusterTlb(const g_string &name, bool enable_timing_mode, unsigned tlb_size,
               unsigned hit_lat, unsigned res_lat, unsigned line_shift,
               unsigned page_shift, EVICTSTYLE policy = LRU)
         : tlb_entry_num(tlb_size), hit_latency(hit_lat),
@@ -45,7 +45,7 @@ template <class T> class CommonTlb : public BaseTlb {
         futex_init(&tlb_lock);
     }
 
-    ~CommonTlb() {
+    ~ClusterTlb() {
         tlb_trie.clear();
         tlb_trie_pa.clear();
     }
@@ -56,12 +56,14 @@ template <class T> class CommonTlb : public BaseTlb {
         Address offset = virt_addr & (page_size - 1);
         Address vpn = virt_addr >> page_shift;
         tlb_address[vpn]++;
-        T *entry = look_up(vpn);
+        T *entry = look_up(vpn);//@buxin: look up the vpn in L1 TLB
         Address ppn;
         // TLB miss
         if (!entry) {
             debug_printf("tlb miss: vaddr:%llx , cycle: %d ", virt_addr,
                          req.cycle);
+            //@buxin: L1 TLB miss, now look up in the 2rd level TLB:
+            
             req.srcId = srcId;
             req.flags = reqFlags;
             // page table walker
@@ -332,7 +334,7 @@ template <class T> class CommonTlb : public BaseTlb {
     }
     void setSourceId(uint32_t id) { srcId = id; }
     void setFlags(uint32_t flags) { reqFlags = flags; }
-    void setLevel(int level) { tlb_level = level; }
+
     // lock_t tlb_access_lock;
     // lock_t tlb_lookup_lock;
     // static lock_t pa_insert_lock;
@@ -356,7 +358,6 @@ template <class T> class CommonTlb : public BaseTlb {
     g_unordered_map<Address, T *> tlb_trie_pa;
 
     g_string tlb_name_;
-    int tlb_level;
     // page table walker
     BasePageTableWalker *page_table_walker;
     // eviction policy
