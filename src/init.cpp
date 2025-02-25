@@ -77,7 +77,7 @@
 #include "common/common_functions.h"
 #include "common/global_const.h"
 #include "tlb/common_tlb.h"
-#include "tlb/cluster_tlb.h"
+// #include "tlb/cluster_tlb.h"
 #include "tlb/page_table_walker.h"
 #include "tlb/tlb_entry.h"
 #include "page-table/comm_page_table_op.h"
@@ -975,7 +975,7 @@ static void InitSystem(Config& config) {
                 string tlb_type = config.get<const char*>("sys.tlbs.type" , "CommonTlb");
                 // assert(tlb_type == "CommonTlb");
                 if(tlb_type == "CommonTlb") zinfo->tlb_type = COMMONTLB;
-                if(tlb_type == "ClusterTlb") zinfo->tlb_type = CLUSTERTLB;
+                // if(tlb_type == "ClusterTlb") zinfo->tlb_type = CLUSTERTLB;
                 debug_printf("tlb type is:%s", tlb_type.c_str());
                 union {
                     PageTableWalker<TlbEntry>* common_pgt;
@@ -1073,13 +1073,13 @@ static void InitSystem(Config& config) {
 
                 union {
                     CommonTlb<TlbEntry> * common_tlb;
-                    ClusterTlb<TlbEntry> * cluster_tlb;
+                    // ClusterTlb<TlbEntry> * cluster_tlb;
                     CommonTlb<TlbEntry> * potm_tlb;
                 };
                 //string tlb_type = config.get<const char*>("sys.tlbs.type" , "CommonTlb");
                 debug_printf("tlb type: "+ tlb_type);
                 if(zinfo->tlb_type == COMMONTLB) common_tlb = gm_memalign<CommonTlb<TlbEntry> >(CACHE_LINE_BYTES, 3*cores);
-                if(zinfo->tlb_type == CLUSTERTLB) cluster_tlb = gm_memalign<ClusterTlb<TlbEntry> >(CACHE_LINE_BYTES, 3*cores);
+                // if(zinfo->tlb_type == CLUSTERTLB) cluster_tlb = gm_memalign<ClusterTlb<TlbEntry> >(CACHE_LINE_BYTES, 3*cores);
                 // if(zinfo->potm_enabled == true) potm_tlb = gm_memalign<POTM_TLB<TlbEntry> >(CACHE_LINE_BYTES, cores);
                 int tlb_id = 0;
 

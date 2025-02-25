@@ -213,30 +213,20 @@ template <class T> class CommonTlb : public BaseTlb {
         debug_printf("insert tlb of vpage no %llx in %s", vpage_no, tlb_name_.c_str());
         assert(!tlb_trie.count(vpage_no));
         // no free TLB entry
-        debug_printf("here1");
         if (free_entry_list.empty()) {
             tlb_evict_time++;
             evict(); // default is LRU
         }
-        debug_printf("here2");
         if (free_entry_list.empty() == false) {
-            debug_printf("here2.1");
             T *new_entry = free_entry_list.front();
-            debug_printf("here2.2");
             free_entry_list.pop_front();
-            debug_printf("here2.3");
             *new_entry = entry;
             new_entry->set_valid();
-            debug_printf("here2.4");
             new_entry->lru_seq = ++lru_seq;
-            debug_printf("here2.5");
             tlb_trie[vpage_no] = new_entry;
-            debug_printf("here2.6");
             tlb_trie_pa[new_entry->p_page_no] = new_entry;
-            debug_printf("here2.7");
             // std::cout<<"insert "<<new_entry->p_page_no<<" to pa"<<std::endl;
             futex_unlock(&tlb_lock);
-            debug_printf("here3");
             return new_entry;
         }
         futex_unlock(&tlb_lock);

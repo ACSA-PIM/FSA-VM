@@ -88,4 +88,48 @@ class TlbEntry : public BaseTlbEntry {
 
     void remap(Address ppn) {}
 };
+
+class TlbEntry;
+class ClusterTlbEntry : public GlobAlloc {
+    public:
+    Address basic_v_page_no;
+    Address basic_p_page_no;
+    uint16_t flag;
+    uint16_t cluster_size;
+    uint64_t priority; // keep track of priority
+    uint64_t lru_seq; // keep track of LRU seq
+    std::vector<unsigned> low_bits;
+    ClusterTlbEntry(Address basic_vpn, Address basic_ppn)
+        : basic_v_page_no(basic_vpn), basic_p_page_no(basic_ppn),
+         flag(0), priority(0), cluster_size(cluster_size) {}
+    ClusterTlbEntry() {};
+
+    virtual void operator=(ClusterTlbEntry &target_tlb) {
+        basic_v_page_no = target_tlb.basic_v_page_no;
+        basic_p_page_no = target_tlb.basic_p_page_no;
+        flag = target_tlb.flag;
+    }
+
+    bool is_valid() { return (flag & TlbFlag::VALID); }
+    void set_valid() { flag |= TlbFlag::VALID; }
+    void set_invalid() { flag = 0; }
+    void update_vpn(Address new_vpn) { basic_v_page_no = new_vpn; }
+    void update_ppn(Address new_ppn) { basic_p_page_no = new_ppn; }
+    // virtual void map(Address vpn, Address ppn) {
+    //     v_page_no = vpn;
+    //     p_page_no = ppn;
+    // }
+    virtual void insert(Address vpn, Address ppn) {
+        TlbEntry new_entry(vpn, ppn);
+        new_entry.set_valid();
+        low_bits.push_back(get_bits(vpn, 0, cluster_size - 1));
+    }
+    virtual void update_priority() {
+        uint16_t num = low_bits.size();
+        priority = lru_seq + 2 * num;
+    }
+    virtual Address get_counter() { return INVALID_PAGE_ADDR; }
+    virtual Address sub_look_up(Address vpn) { return (basic_p_page_no << cluster_size) | low_bits[get_bits(vpn, 0, 2)];}
+    virtual void clear_counter() {}
+};
 #endif

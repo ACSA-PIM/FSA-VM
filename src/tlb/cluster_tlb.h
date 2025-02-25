@@ -7,6 +7,7 @@
 /*
  * Copyright (C) 2020 Chao Yu (yuchaocs@gmail.com)
  */
+#define CLUSTER_TLB_H_
 #ifndef CLUSTER_TLB_H_
 #define CLUSTER_TLB_H_
 #include <set>
@@ -24,15 +25,15 @@
 
 template <class T> class ClusterTlb : public BaseTlb {
   public:
-    ClusterTlb(const g_string &name, bool enable_timing_mode, unsigned tlb_size,
-              unsigned hit_lat, unsigned res_lat, unsigned line_shift,
-              unsigned page_shift, EVICTSTYLE policy = LRU)
+    ClusterTlb(const g_string &name, bool enable_timing_mode, unsigned tlb_size,      
+        unsigned hit_lat, unsigned res_lat, unsigned line_shift,
+        unsigned page_shift, uint16_t cluster_size, EVICTSTYLE policy = CLUSTER)
         : tlb_entry_num(tlb_size), hit_latency(hit_lat),
           response_latency(res_lat), tlb_access_time(0), tlb_hit_time(0),
           tlb_evict_time(0), tlb_name_(name),
           enable_timing_mode(enable_timing_mode), line_shift(line_shift),
           page_shift(page_shift), page_size(1 << page_shift),
-          evict_policy(policy) {
+          evict_policy(policy), cluster_size(cluster_size) {
         assert(tlb_size > 0);
         tlb = gm_memalign<T *>(CACHE_LINE_BYTES, tlb_size);
         tlb_trie.clear();
@@ -55,21 +56,18 @@ template <class T> class ClusterTlb : public BaseTlb {
         Address virt_addr = req.lineAddr << line_shift;
         Address offset = virt_addr & (page_size - 1);
         Address vpn = virt_addr >> page_shift;
-        tlb_address[vpn]++;
-        T *entry = look_up(vpn);//@buxin: look up the vpn in L1 TLB
+        Address basic_vpn = vpn >> cluster_size;
+        tlb_address[basic_vpn]++;
+        T *entry = look_up(basic_vpn);//@buxin: look up the vpn in cluster TLB
         Address ppn;
-        // TLB miss
+        // Cluster TLB Entry miss, look up in the regular TLB
         if (!entry) {
-            debug_printf("tlb miss: vaddr:%llx , cycle: %d ", virt_addr,
+            debug_printf("cluster tlb miss: vaddr:%llx , cycle: %d ", virt_addr,
                          req.cycle);
-            //@buxin: L1 TLB miss, now look up in the 2rd level TLB:
-            
-            req.srcId = srcId;
-            req.flags = reqFlags;
-            // page table walker
-            ppn = page_table_walker->access(req);
-            // update TLB
-            T new_entry(vpn, ppn);
+            //@buxin: cluster TLB miss, now look up in the regular TLB:
+            ppn = regular_tlb->access(req);
+            //@buxin: initialize a cluster TLB Entry
+            ClusterTlbEntry new_entry(vpn, ppn);
             insert_num++;
             new_entry.set_valid();
             if (req.pageShared)
@@ -77,17 +75,23 @@ template <class T> class ClusterTlb : public BaseTlb {
             if (req.pageDirty)
                 new_entry.set_page_dirty();
             // std::cout << "insert vpn: " << vpn << " ppn: " << ppn << std::endl;
-            insert(vpn, new_entry);
-        } else // TLB hit
+            insert(vpn, ppn);
+        } else // CLUSTER entry hit, now look up in the cluster entry
         {
-            debug_printf("tlb hit: vaddr:%llx , cycle: %d ", virt_addr,
+            debug_printf("cluster tlb hit: vaddr:%llx , cycle: %d, look up in the entry", virt_addr,
                          req.cycle);
             if (enable_timing_mode)
                 req.cycle += hit_latency;
             tlb_hit_time++;
-            ppn = entry->p_page_no;
-            req.pageShared = entry->is_page_shared();
-            req.pageDirty = entry->is_page_dirty();
+            Address ppn = -1;
+            ppn = entry->sub_look_up(vpn);
+            if(ppn != -1) ppn = (entry->basic_p_page_no << cluster_size) | ppn;
+            else {
+                //@buxin: Cluster entry hit, but the entry is not in the cluster entry
+                // now look up in the regular TLB
+                ppn = regular_tlb->access(req);
+                insert(vpn, ppn); //@buxin: update cluster TLB Entry
+            }
         }
         if (enable_timing_mode)
             req.cycle += response_latency;
@@ -101,7 +105,7 @@ template <class T> class ClusterTlb : public BaseTlb {
         if (entry) {
             entry->set_invalid();
             tlb_trie.erase(vpn);
-            tlb_trie_pa.erase(entry->p_page_no);
+            tlb_trie_pa.erase(entry->basic_p_page_no);
             free_entry_list.push_back(entry);
         }
         uint32_t shootdown_lat = 0;
@@ -172,16 +176,17 @@ template <class T> class ClusterTlb : public BaseTlb {
      *lru_sequence or not
      *@return: poniter of found TLB entry; NULL represents that TLB miss
      */
-    T *look_up(Address vpage_no, bool update_lru = true) {
+    T *look_up(Address base_vpage_no) {
         // debug_printf("look up tlb vpage_no: %llx",vpage_no);
         // TLB hit,update lru_seq of tlb entry to the newest lru_seq
         T *result_node = NULL;
         futex_lock(&tlb_lock);
-        if (tlb_trie.count(vpage_no)) {
-            result_node = tlb_trie[vpage_no];
+        if (tlb_trie.count(base_vpage_no)) {
+            result_node = tlb_trie[base_vpage_no];
         }
-        if (result_node && result_node->is_valid() && update_lru) {
+        if (result_node && result_node->is_valid()) {
             result_node->lru_seq = ++lru_seq;
+            result_node->update_priority();
         }
         futex_unlock(&tlb_lock);
         return result_node;
@@ -197,27 +202,49 @@ template <class T> class ClusterTlb : public BaseTlb {
         return result_node;
     }
 
-    T *insert(Address vpage_no, T &entry) {
+    T *insert(Address vpage_no, Address ppage_no) {
         futex_lock(&tlb_lock);
-        // whether entry is already exists
+        // insert a new entry in Cluster TLB
+        Address base_vpn = get_bits(vpage_no, cluster_size, 64);
+        Address base_ppn = get_bits(ppage_no, cluster_size, 64);
+        T entry(base_vpn, base_ppn);
         debug_printf("insert tlb of vpage no %llx", vpage_no);
-        assert(!tlb_trie.count(vpage_no));
-        // no free TLB entry
-        if (free_entry_list.empty()) {
-            tlb_evict_time++;
-            evict(); // default is LRU
+        //@buxin: here are 3 situation: 
+        // 1. There's no base mapping in Cluster TLB: the entry can be clustered.
+        // 2. current base mapping is aligned to the entry: the entry can be clustered.
+        // 3. current base mapping is not aligned to the entry: the entry cannot be clustered, inserted into regular L2 TLB.
+        if(!tlb_trie.count(base_vpn)) {//@buxin: situation 1: no base mapping in Cluster TLB
+            // no free TLB entry
+            if (free_entry_list.empty()) {
+                tlb_evict_time++;
+                evict(); // default is CLUSTER(LRU+USABLE, refer the paper)
+            }
+            if (free_entry_list.empty() == false) {
+                T *new_entry = free_entry_list.front();
+                free_entry_list.pop_front();
+                *new_entry = entry;
+                new_entry->set_valid();
+                new_entry->lru_seq = ++lru_seq;
+                new_entry->upadte_priority();
+                tlb_trie[base_vpn] = new_entry;
+                tlb_trie_pa[base_ppn] = new_entry;
+                new_entry->update_priority();
+                // std::cout<<"insert "<<new_entry->p_page_no<<" to pa"<<std::endl;
+                futex_unlock(&tlb_lock);
+                return new_entry;
+            }
         }
-        if (free_entry_list.empty() == false) {
-            T *new_entry = free_entry_list.front();
-            free_entry_list.pop_front();
-            *new_entry = entry;
-            new_entry->set_valid();
-            new_entry->lru_seq = ++lru_seq;
-            tlb_trie[vpage_no] = new_entry;
-            tlb_trie_pa[new_entry->p_page_no] = new_entry;
-            // std::cout<<"insert "<<new_entry->p_page_no<<" to pa"<<std::endl;
+        else if(tlb_trie[base_vpn]->basic_p_page_no == base_ppn) {//@buxin: situation 2: base mapping is aligned to the entry
+            T *cur_entry = tlb_trie[base_vpn];
+            cur_entry->insert(vpage_no, ppage_no);
+            cur_entry->updatge_priority();
             futex_unlock(&tlb_lock);
-            return new_entry;
+            return cur_entry;
+        }
+        else {//@buxin: situation 3: base mapping is not aligned to the entry
+            regular_tlb->insert();
+            futex_unlock(&tlb_lock);
+            return NULL;
         }
         futex_unlock(&tlb_lock);
         return NULL;
@@ -244,18 +271,20 @@ template <class T> class ClusterTlb : public BaseTlb {
         return true;
     }
 
-    // default is LRU
+    // Cluster TLB uses the policy proposed in the paper.
+    // use update_priority() to update the priority of the entry
+    // the algorithm：priority = a * lru_seq + b * usefulness
     virtual T *evict() {
         T *tlb_entry = NULL;
-        if (evict_policy == LRU) {
-            unsigned entry_num = lru_evict();
+        if (evict_policy == CLUSTER) {
+            unsigned entry_num = cluster_evict();
             tlb_entry = tlb[entry_num];
         }
-        // evict entry in position of min_lru_entry
+        // evict entry in position of min_priority_entry
         // remove handle from tlb_trie
-        assert(tlb_trie.count(tlb_entry->v_page_no));
-        tlb_trie.erase(tlb_entry->v_page_no);
-        tlb_trie_pa.erase(tlb_entry->p_page_no);
+        assert(tlb_trie.count(tlb_entry->basic_v_page_no));
+        tlb_trie.erase(tlb_entry->basic_v_page_no);
+        tlb_trie_pa.erase(tlb_entry->basic_p_page_no);
         // std::cout<<"tlb evict, vpn:"<<tlb_entry->v_page_no<<"
         // ppn:"<<tlb_entry->p_page_no<<std::endl;
         tlb_entry->set_invalid();
@@ -263,27 +292,26 @@ template <class T> class ClusterTlb : public BaseTlb {
         return tlb_entry; // return physical address recorded in this tlb entry
     }
 
-    // evict entry according to lru sequence
-    unsigned lru_evict() {
+    // evict entry according to priority sequence
+    unsigned cluster_evict() {
         assert(free_entry_list.empty());
-        uint64_t min_lru_entry = 0;
+        uint64_t min_priority_entry = 0;
         // find the smallest lru_seq by accessing all TLB Entries' lru_seq
         for (unsigned i = 1; i < tlb_entry_num; i++) {
-            if ((tlb[i]->is_valid()) &&
-                (tlb[i]->lru_seq < tlb[min_lru_entry]->lru_seq))
-                min_lru_entry = i;
+            if ((tlb[i]->is_valid()) && (tlb[i]->priority < tlb[min_priority_entry]->priority))
+                min_priority_entry = i;
         }
-        return min_lru_entry; // return physical address recorded in this tlb
-                              // entry
+        return min_priority_entry; // return physical address recorded in this tlb
+                                // entry
     }
 
-    bool delete_entry(Address vpage_no) {
+    bool delete_entry(Address basic_vpage_no) {
         bool deleted = false;
         // look up tlb entry first
-        T *delete_entry = look_up(vpage_no);
+        T *delete_entry = look_up(basic_vpage_no);
         if (delete_entry) {
-            tlb_trie.erase(delete_entry->v_page_no);
-            tlb_trie_pa.erase(delete_entry->p_page_no);
+            tlb_trie.erase(delete_entry->basic_v_page_no);
+            tlb_trie_pa.erase(delete_entry->basic_p_page_no);
             delete_entry->set_invalid();
             free_entry_list.push_back(delete_entry);
             deleted = true;
@@ -295,10 +323,10 @@ template <class T> class ClusterTlb : public BaseTlb {
     void flush_all_noglobal() {
         for (unsigned i = 0; i < tlb_entry_num; i++) {
             if (!tlb[i]->global) {
-                if (tlb_trie.count(tlb[i]->v_page_no))
-                    tlb_trie.erase(tlb[i]->v_page_no);
-                if (tlb_trie_pa.count(tlb[i]->p_page_no))
-                    tlb_trie_pa.erase(tlb[i]->p_page_no);
+                if (tlb_trie.count(tlb[i]->basic_v_page_no))
+                    tlb_trie.erase(tlb[i]->basic_v_page_no);
+                if (tlb_trie_pa.count(tlb[i]->basic_p_page_no))
+                    tlb_trie_pa.erase(tlb[i]->basic_p_page_no);
             }
         }
     }
@@ -367,7 +395,7 @@ template <class T> class ClusterTlb : public BaseTlb {
     uint64_t page_size;
     uint64_t page_shift;
     unsigned line_shift;
-
+    uint16_t cluster_size;
     uint32_t srcId; // should match the core
     uint32_t reqFlags;
 };

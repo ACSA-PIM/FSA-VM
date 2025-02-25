@@ -146,7 +146,8 @@ enum EVICTSTYLE
 {
 	LRU = 0x01,
 	HOTNESSAware = 0x02,
-	HotMonitorTLBLRU= 0x03
+	HotMonitorTLBLRU= 0x03,
+	CLUSTER= 0x04
 };
 
 enum DRAMEVICTSTYLE
