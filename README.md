@@ -1,154 +1,55 @@
-# FSA-VM: A Fast, Scalable, and Accurate Virtual Memory Simulator
+# FSA-VM: Fast, Scalable, and Accurate Virtual Memory Simulation Framework
 
-This repository is forked from MultiPIM, the original README:
+## Overview
+FSA-VM aims to provide a comprehensive framework for simulating and evaluating virtual memory systems. This framework integrates various virtual memory management designs and optimizations at multiple levels, including hardware components like page tables, TLBs, MMUs, and software layers. It leverages existing simulators like zsim and ramulator for high scalability and accuracy, facilitating effective performance evaluation of virtual memory management. This repository is based on MultiPIM.(https://github.com/Systems-ShiftLab/MultiPIM)
 
-MultiPIM
-====
+## Features
+- **Page Table Walking Cache (PWC)**: Effectively simulates the hardware performance of page table walking caches in multicore systems.
+- **Multi-Level TLB**: Supports simulations of multi-level TLB architectures to evaluate their impact on performance.
+- **Multiple Address Translation Mechanisms**: Incorporates various address translation mechanisms to explore different memory management techniques.
+- **Benchmarks**: Uses a variety of applications with different memory access patterns for analysis, focusing on normal data and metadata, to assess performance.
 
-MultiPIM is general purpose Processing-in-Memory (PIM) simulation framework that supports multiple memory stacks (e.g., multiple HMC cubes). MultiPIM consists of frontend and backend. The frontend mainly handles non-memory instructions and cache accesses, while the backend simulates the actual latency of memory requests issued from the frontend. Considering that a PIM system with multiple memory nodes can have hundreds of PIM cores, we implemented the frontend based on [ZSim](https://github.com/s5z/zsim) to support massive cores and achieve fast simulation. The backend is implemented based on [Ramulator](https://github.com/CMU-SAFARI/ramulator) and the HMC model from [ramulator-pim](https://github.com/CMU-SAFARI/ramulator-pim) to implement a 3D-stack memory.
+## Evaluation
+1. **Validation**: Compares key performance indicators such as TLB, PTW with real machine metrics to demonstrate simulation accuracy.
+2. **Simulation Speed**: Benchmarks against other virtual memory simulators like Victima to highlight the speed advantages of FSA-VM in both single-core and large-scale core scenarios.
+3. **Hardware and Software Co-design Simulation**: Analyzes the combination of hardware and software designs in virtual memory management, providing key experimental insights and results.
+4. **Scalability Analysis**: Assesses the scalability of the simulation framework in large-scale core and PIM architectures, focusing on the overhead of address translation.
+5. **Application Characteristic Simulation**: Identifies and analyzes different memory access patterns in virtual memory management.
 
-If you use this simulator in your work, please cite:
+## Usage
+Instructions on how to set up and run simulations with FSA-VM will be provided here.
 
-[1] C. Yu, S. Liu, S. Khan, "MultiPIM: A Detailed and Configurable Multi-Stack Processing-In-Memory Simulator," in IEEE Computer Architecture Letters, doi: 10.1109/LCA.2021.3061905. [Link](https://ieeexplore.ieee.org/document/9362242)
+## Contributing
+Guidelines for contributing to the FSA-VM project will be outlined here.
 
-Features
------
+## License
+Details about the project's licensing will be included here.
 
-MultiPIM supports following features:
-* **Memory interconnection definition**
-  
-    MultiPIM generates memory interconnections from a user-defined XML configuration file. Users can define how each memory is connected with each other and CPU. For more details, please refer the MultiPIM paper.
+---
 
-* **Packet routing**
+# FSA-VM：快速、可扩展和精确的虚拟内存模拟框架
 
-    To support multiple memory interconnections, there should be a scheme to route packets among memory nodes. Uers can either define their static packet routing rules in the XML configuration file or extend the "int getRouteLink(int src_node, int dst_node)" function in ramulator/MemoryTopology.cpp to support a dynamic routing algorithm.
+## 概述
+FSA-VM 旨在提供一个全面的虚拟内存系统模拟和评估框架。该框架整合了包括页表、TLB、MMU在内的硬件组件和软件层面的多种虚拟内存管理设计与优化。它利用了zsim和ramulator等现有模拟器，以实现高可扩展性和准确性，有效评估虚拟内存管理的性能。
 
-* **Crossbar switch**
+## 特性
+- **页表走行缓存(PWC)**：有效模拟多核系统下的页表走行缓存硬件性能模拟。
+- **多级TLB**: 支持多级TLB架构的模拟，评估其对性能的影响。
+- **多种地址翻译机制**: 集成多种地址翻译机制，探索不同的内存管理技术。
+- **基准测试**: 使用多种不同内存访问模式的应用进行分析，重点关注普通数据和元数据，以评估性能。
 
-    The crossbar switch is implemented based on [Booksim2](https://github.com/booksim/booksim2), so that users can evaluate different crossbar NoCs flexiblely.
+## 评估
+1. **验证**: 与实机的TLB、PTW等关键部件的性能指标进行对比，展示模拟的精确度。
+2. **模拟速度**: 与Victima等其他虚拟内存模拟器进行基准测试，突出在单核和大规模核场景下FSA-VM的速度优势。
+3. **软硬件协同设计模拟**: 分析虚拟内存管理中硬件和软件设计的结合，提供关键的实验洞察和结果。
+4. **可扩展性分析**: 评估模拟框架在大规模核心和PIM架构中的可扩展性，专注于地址翻译的开销。
+5. **应用特征模拟**: 识别并分析虚拟内存管理中应用的不同内存访问模式。
 
-* **Virtual memory**
-  
-    MultiPIM supports virtual memory with different page sizes (e.g., 4KB page and 2MB page) following the Linux’s buddy memory management mechanism. The virtual memory system is implemented based on [HSCC](https://github.com/CGCL-codes/HSCC). Both the CPU and PIM cores in MultiPIM can be configured with translation lookaside buffers (TLBs), both instruction-TLB and data-TLB, and a page table walker (PTW). PTWs in the CPU cores are connected to the LLC to reduce the page-table-walk overhead; however, as there is no LLC in PIM cores, PTWs in PIM cores access memory directly. All PTW requests are sent to the backend and simulated as normal memory requests for better accuracy.
+## 使用说明
+此处将提供如何设置和运行FSA-VM模拟的说明。
 
-* **PIM-core coherence**
-  
-    The coherence problem arises as threads executing on different PIM cores may share data. As PIM cores are residing in different memory stacks, without a shared last-level cache (LLC), we implement a coherence directory (can be either shared or private) with the MESI protocol for PIM cores. MultiPIM supports both write-through and write-back cache policies. Users can have there specific coherence protocol by implementing the coherence interfaces.
+## 贡献指南
+此处将概述向FSA-VM项目贡献的指南。
 
-* **PIM offloading interfaces**
-
-    MultiPIM provides two kinds of offloading interfaces: PIM Multi-Processing interface and PIM Block interface. The PIM Multi-Processing interface is used to annotate the begin of multiple PIM tasks (e.g., OpenMP threads). The PIM Block interface is used to annotate a PIM code block in a single process/thread.
-    
-    1. PIM Multi-Processing interface
-    ```
-    pim_mp_begin()
-    pim_mp_end()
-    ```
-    2. PIM Block interface
-    ```
-    pim_blk_begin()
-    pim_blk_end()
-    ```
-
-* **CPU-PIM Co-simulation**
-
-    THe current released version of MultiPIM only supports PIM-only and CPU-only simulation. We will release the CPU-PIM co-simulation in about a month.
-
-Instructions
------
-Below instructions are based on Ubuntu18.04.
-
-* To resolve all dependencies:
-```
-cd MultiPIM
-sudo sh setup.sh
-```
-* Besides, MultiPIM requires a C++11 compiler (e.g., g++ >= 6), and boost should be installed. 
-
-* To install MultiPIM:
-```
-cd MultiPIM
-sh compile.sh opt
-```
-
-* Changing the `ZSIM_PATH` in env.sh to your actual path.
-
-* To identify `PIM offload` regions, and wrap `PIM offload` regions with the following interfaces:
-    1. Using the PIM Multi-Processing interface
-    ```cpp
-    #include "zsim-pim/misc/hooks/zsim_hooks.h"
-    foo(){
-        /*
-        * zsim_roi_begin() and pim_mp_begin() must be included in a serial part of the code.
-        */
-    	zsim_roi_begin();//It must be included in a serial part of the code.
-        pim_mp_begin();// Indicates the beginning of PIM offload region to simulate (hotspot).
-        #pragma omp parallel for
-        for(){
-            ...
-        }
-    	pim_mp_end(); // Indicates the end of the PIM offload region to simulate.
-        zsim_roi_end(); //zsim_roi_end() marks the end of the ROI. 
-        /*
-        * zsim_roi_end() and pim_mp_end()
-        */
-    	
-    }
-    ```
-    1. Using the PIM Block interface
-    ```cpp
-    #include "zsim-pim/misc/hooks/zsim_hooks.h"
-    foo(){
-        /*
-        * zsim_roi_begin() must be included in a serial part of the code.
-        */
-    	zsim_roi_begin(); //It must be included in a serial part of the code.
-        pim_blk_begin();// Indicates the beginning of the PIM code block in a single process/thread to simulate (hotspot).
-        ...
-        for (i = 0; i < _PB_NX; i++)
-        {
-          tmp[i] = 0;
-          for (j = 0; j < _PB_NY; j++){
-            tmp[i] = tmp[i] + A[i][j] * x[j];
-          }
-        }
-        ...
-    	pim_blk_end(); // Indicates the end of the PIM code block to simulate.
-        zsim_roi_end(); //zsim_roi_end() marks the end of the ROI. 
-        /*
-        * zsim_roi_end() and pim_blk_end()
-        */
-    	
-    }
-    ```
-    These two kinds of interfaces cannot be nested. Please check the `tests/benchmarks` directory for more examples.
-    If PIM Multi-Processing interface is used, the PIM thread scheduler captures the creation of a PIM thread, and pins that PIM thread to a PIM core. However, if PIM Block interface is used, the PIM thread scheduler can't capture the creation of a thread, and PIM blocks in the same thread can be executed in a random PIM core.
-
-* You may need to compile the test first:
-```
-cd tests/benchmarks/Polybench/
-./compile.sh
-```
-
-* Setting configuration parameters:
-1. Define memory network interconnections and packet routing rules, see the example in configs/ramulator/dragonfly_16mem_4link.xml. Users need to specify the actual path of the memory network configuration file to the parameter `topology_file` in ramulator's configuration file (e.g., configs/ramulator/MultiPIM-hmc-dragonfly.cfg).
-   
-2. Define ramulator configurations (e.g., configs/ramulator/MultiPIM-hmc-dragonfly.cfg). You may also need to define the crossbar swith NoC configurations (e.g., configs/ramulator/switch_network.cfg).
-   
-3. Define zsim configurations (e.g., configs/zsim/pim_normal_tlb_dragonfly.cfg). Make sure to set `sys.mem.ramulatorConfig` and `sys.mem.hmcSwitchConfig` to your actual paths.
-
-4. Enable PIM mode or just host mode:
-```
-sys.enablePIMMode
-```
-To simulate a PIM architecture, the PIM core type should set to "PIM".
-
-* To launch a test run:
-```
-cd tests
-./run-pim.sh
-```
-
-Support or Contact
------
-MultiPIM is developed by Chao Yu. For any questions, please contact Chao Yu (yc9uf@virginia.edu).
+## 许可证
+此处将包括项目许可证的详细信息。
